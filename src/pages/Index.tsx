@@ -249,14 +249,14 @@ const Index = () => {
             <div>
               <h4 className="font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground">Terms of Service</a></li>
+                <li><Link to="/how-it-works" className="hover:text-foreground">Terms of Service</Link></li>
                 <li><a href="#" className="hover:text-foreground">Privacy Policy</a></li>
                 <li><a href="#" className="hover:text-foreground">About Us</a></li>
               </ul>
             </div>
           </div>
           <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
-            <p>&copy; 2025 PromoHub. All rights reserved.</p>
+            <p>&copy; 2026 PromoHub. All rights reserved.</p>
           </div>
         </div>
       </footer>
