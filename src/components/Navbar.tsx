@@ -1,11 +1,15 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X } from "lucide-react";
+import { Shield, Menu, X, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTheme } from "next-themes";
 
 export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { resolvedTheme, setTheme } = useTheme();
+
+  const isDarkMode = resolvedTheme === "dark";
 
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
@@ -28,6 +32,15 @@ export const Navbar = () => {
               How It Works
             </Link>
             <div className="flex items-center gap-3 ml-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="border border-border"
+                onClick={() => setTheme(isDarkMode ? "light" : "dark")}
+                aria-label="Toggle dark mode"
+              >
+                {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
               <Button variant="outline" asChild>
                 <Link to="/login">Log In</Link>
               </Button>
@@ -38,12 +51,23 @@ export const Navbar = () => {
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            className="md:hidden p-2"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
+          <div className="flex items-center gap-2 md:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="border border-border"
+              onClick={() => setTheme(isDarkMode ? "light" : "dark")}
+              aria-label="Toggle dark mode"
+            >
+              {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <button
+              className="p-2"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -79,6 +103,15 @@ export const Navbar = () => {
                 How It Works
               </Link>
               <div className="flex flex-col gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTheme(isDarkMode ? "light" : "dark");
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  {isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                </Button>
                 <Button variant="outline" asChild>
                   <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
                     Log In
