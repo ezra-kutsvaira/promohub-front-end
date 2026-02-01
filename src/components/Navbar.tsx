@@ -1,15 +1,26 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X, Moon, Sun } from "lucide-react";
+import { Shield, Menu, X, Moon, Sun, User } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
+import { useAuth } from "@/lib/auth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
+  const { user, signOut } = useAuth();
 
   const isDarkMode = resolvedTheme === "dark";
+  const isAuthenticated = Boolean(user);
 
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
@@ -31,6 +42,11 @@ export const Navbar = () => {
             <Link to="/how-it-works" className="text-foreground hover:text-primary transition-colors">
               How It Works
             </Link>
+            {isAuthenticated && (
+              <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
+                Dashboard
+              </Link>
+            )}
             <div className="flex items-center gap-3 ml-4">
               <Button
                 variant="ghost"
@@ -41,12 +57,44 @@ export const Navbar = () => {
               >
                 {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
-              <Button variant="outline" asChild>
-                <Link to="/login">Log In</Link>
-              </Button>
-              <Button asChild>
-                <Link to="/register">Get Started</Link>
-              </Button>
+              {isAuthenticated ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <User className="h-4 w-4" />
+                      {user?.name.split(" ")[0]}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel className="capitalize">
+                      {user?.role} account
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/dashboard">Dashboard</Link>
+                    </DropdownMenuItem>
+                    {user?.role !== "business" && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/saved-promotions">Saved promotions</Link>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem asChild>
+                      <Link to="/account-settings">Account settings</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={signOut}>Sign out</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <>
+                  <Button variant="outline" asChild>
+                    <Link to="/login">Log In</Link>
+                  </Button>
+                  <Button asChild>
+                    <Link to="/register">Get Started</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -102,6 +150,15 @@ export const Navbar = () => {
               >
                 How It Works
               </Link>
+              {isAuthenticated && (
+                <Link
+                  to="/dashboard"
+                  className="text-foreground hover:text-primary transition-colors py-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
+              )}
               <div className="flex flex-col gap-2 pt-2">
                 <Button
                   variant="outline"
@@ -112,16 +169,44 @@ export const Navbar = () => {
                 >
                   {isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
                 </Button>
-                <Button variant="outline" asChild>
-                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                    Log In
-                  </Link>
-                </Button>
-                <Button asChild>
-                  <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
-                    Get Started
-                  </Link>
-                </Button>
+                {isAuthenticated ? (
+                  <>
+                    {user?.role !== "business" && (
+                      <Button variant="outline" asChild>
+                        <Link to="/saved-promotions" onClick={() => setMobileMenuOpen(false)}>
+                          Saved promotions
+                        </Link>
+                      </Button>
+                    )}
+                    <Button variant="outline" asChild>
+                      <Link to="/account-settings" onClick={() => setMobileMenuOpen(false)}>
+                        Account settings
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        signOut();
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      Sign out
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" asChild>
+                      <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                        Log In
+                      </Link>
+                    </Button>
+                    <Button asChild>
+                      <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
+                        Get Started
+                      </Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>
