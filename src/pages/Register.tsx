@@ -4,11 +4,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import { BadgeCheck, FileCheck, Shield, TrendingUp } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { useNavigate } from "react-router-dom";
 
 const Register = () => {
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const businessName = String(formData.get("business-name") ?? "Verified Business");
+    const email = String(formData.get("contact-email") ?? "business@promohub.co.zw");
+    signIn({ name: businessName, email, role: "business" });
     toast.success("Thanks! Your verification request is now queued for review.");
+    navigate("/dashboard");
   };
 
   return (

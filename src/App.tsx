@@ -10,6 +10,10 @@ import HowItWorks from "./pages/HowItWorks";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
+import Dashboard from "./pages/Dashboard";
+import SavedPromotions from "./pages/SavedPromotions";
+import AccountSettings from "./pages/AccountSettings";
+import { RequireAuth, RequireRole } from "./components/RouteGuard";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +31,32 @@ const App = () => {
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route
+              path="/dashboard"
+              element={
+                <RequireAuth>
+                  <Dashboard />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/saved-promotions"
+              element={
+                <RequireAuth>
+                  <RequireRole allowed={["consumer", "admin"]}>
+                    <SavedPromotions />
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/account-settings"
+              element={
+                <RequireAuth>
+                  <AccountSettings />
+                </RequireAuth>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
