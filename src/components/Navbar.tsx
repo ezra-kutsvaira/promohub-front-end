@@ -39,8 +39,11 @@ export const Navbar = () => {
             <Link to="/browse" className="text-foreground hover:text-primary transition-colors">
               Browse Promotions
             </Link>
+            <Link to="/roadshows" className="text-foreground hover:text-primary transition-colors">
+              Roadshows & Events
+            </Link>
             <Link to="/how-it-works" className="text-foreground hover:text-primary transition-colors">
-              How It Works
+              About
             </Link>
             {isAuthenticated && (
               <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
@@ -144,11 +147,18 @@ export const Navbar = () => {
                 Browse Promotions
               </Link>
               <Link
+                to="/roadshows"
+                className="text-foreground hover:text-primary transition-colors py-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Roadshows & Events
+              </Link>
+              <Link
                 to="/how-it-works"
                 className="text-foreground hover:text-primary transition-colors py-2"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                How It Works
+                About
               </Link>
               {isAuthenticated && (
                 <Link
