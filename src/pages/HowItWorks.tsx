@@ -57,12 +57,13 @@ const HowItWorks = () => {
               },
               {
                 icon: TrendingUp,
-                title: "Step 3: Promotion Publishing",
-                description: "Once verified, businesses can create and publish promotions. Each promotion goes through a quick review to ensure accuracy.",
+                title: "Step 3: Promotion & Roadshow Publishing",
+                description: "Once verified, businesses can create and publish promotions and roadshows. Each submission goes through a quick review to ensure accuracy.",
                 details: [
                   "Create promotion details",
                   "Upload promotional materials",
                   "Set validity dates",
+                  "Schedule roadshow events",
                   "Quick admin approval",
                 ],
               },

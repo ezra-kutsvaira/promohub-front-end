@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Shield, ShieldCheck, FileCheck, Bell, Search, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { roadshowEvents } from "@/data/roadshows";
 
 const featuredPromotions = [
   {
@@ -144,6 +145,44 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Roadshows & Events */}
+      <section className="py-16 bg-muted/20">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10">
+            <div>
+              <h2 className="text-3xl font-bold text-foreground mb-2">Roadshows & Events</h2>
+              <p className="text-muted-foreground">
+                Plan ahead with verified business roadshows, expos, and promo events.
+              </p>
+            </div>
+            <Button variant="outline" asChild>
+              <Link to="/roadshows">View all events</Link>
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {roadshowEvents.slice(0, 3).map((event) => (
+              <div key={event.id} className="bg-card border border-border rounded-xl p-6">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <h3 className="text-lg font-semibold text-foreground">{event.title}</h3>
+                  {event.badge && (
+                    <span className="text-xs font-semibold uppercase tracking-wide bg-primary/10 text-primary px-2 py-1 rounded-full">
+                      {event.badge}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">Hosted by {event.organizer}</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {event.dateRange} • {event.location}
+                </p>
+                <Button size="sm" variant="outline" asChild>
+                  <Link to={`/roadshows/${event.id}`}>View details</Link>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* How It Works */}
       <section className="py-16 bg-muted/30">
         <div className="container mx-auto px-4">
@@ -234,7 +273,8 @@ const Index = () => {
               <h4 className="font-semibold mb-4">Platform</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link to="/browse" className="hover:text-foreground">Browse Promotions</Link></li>
-                <li><Link to="/how-it-works" className="hover:text-foreground">How It Works</Link></li>
+                <li><Link to="/roadshows" className="hover:text-foreground">Roadshows & Events</Link></li>
+                <li><Link to="/how-it-works" className="hover:text-foreground">About</Link></li>
                 <li><Link to="/register" className="hover:text-foreground">For Businesses</Link></li>
               </ul>
             </div>

@@ -7,6 +7,8 @@ import Index from "./pages/Index";
 import Browse from "./pages/Browse";
 import PromotionDetail from "./pages/PromotionDetail";
 import HowItWorks from "./pages/HowItWorks";
+import Roadshows from "./pages/Roadshows";
+import RoadshowDetail from "./pages/RoadshowDetail";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
@@ -27,6 +29,8 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/browse" element={<Browse />} />
+            <Route path="/roadshows" element={<Roadshows />} />
+            <Route path="/roadshows/:id" element={<RoadshowDetail />} />
             <Route path="/promotion/:id" element={<PromotionDetail />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/login" element={<Login />} />
