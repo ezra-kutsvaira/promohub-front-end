@@ -4,83 +4,51 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
-
-const allPromotions = [
-  {
-    id: "1",
-    title: "Black Friday Electronics Sale - Up to 70% Off",
-    businessName: "TechWorld Zimbabwe",
-    category: "Electronics",
-    discount: "70% OFF",
-    location: "Harare",
-    validUntil: "30 Nov 2025",
-    isVerified: true,
-  },
-  {
-    id: "2",
-    title: "Fresh Groceries Weekend Special",
-    businessName: "FreshMart Stores",
-    category: "Groceries",
-    discount: "35% OFF",
-    location: "Bulawayo",
-    validUntil: "15 Dec 2025",
-    isVerified: true,
-  },
-  {
-    id: "3",
-    title: "Fashion Summer Collection Launch",
-    businessName: "StyleHub Boutique",
-    category: "Fashion",
-    discount: "50% OFF",
-    location: "Harare",
-    validUntil: "20 Dec 2025",
-    isVerified: true,
-  },
-  {
-    id: "4",
-    title: "Restaurant Opening Week - Free Desserts",
-    businessName: "Gourmet Palace",
-    category: "Food & Beverages",
-    discount: "Free Gift",
-    location: "Gweru",
-    validUntil: "10 Dec 2025",
-    isVerified: true,
-  },
-  {
-    id: "5",
-    title: "Home Furniture Clearance Sale",
-    businessName: "ComfortHome Ltd",
-    category: "Furniture",
-    discount: "40% OFF",
-    location: "Harare",
-    validUntil: "25 Dec 2025",
-    isVerified: true,
-  },
-  {
-    id: "6",
-    title: "Fitness Membership Special Offer",
-    businessName: "FitZone Gym",
-    category: "Health & Fitness",
-    discount: "3 Months Free",
-    location: "Bulawayo",
-    validUntil: "31 Dec 2025",
-    isVerified: true,
-  },
-];
+import { useEffect, useMemo, useState } from "react";
+import { api, type Promotion } from "@/lib/api";
+import { formatDate, formatDiscount } from "@/lib/format";
+import { toast } from "@/components/ui/sonner";
 
 const Browse = () => {
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [search, setSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadPromotions = async () => {
+      try {
+        const response = await api.getPromotions();
+        const content = Array.isArray(response) ? response : response.content;
+        if (isMounted) {
+          setPromotions(content);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load promotions.";
+        toast.error(message);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadPromotions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredPromotions = useMemo(() => {
     if (!search) {
-      return allPromotions;
+      return promotions;
     }
-    return allPromotions.filter((promo) =>
+    return promotions.filter((promo) =>
       promo.title.toLowerCase().includes(search.toLowerCase()) ||
       promo.businessName.toLowerCase().includes(search.toLowerCase())
     );
-  }, [search]);
+  }, [promotions, search]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -153,15 +121,25 @@ const Browse = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: index * 0.05 }}
             >
-              <PromotionCard {...promo} />
+              <PromotionCard
+                id={promo.id.toString()}
+                title={promo.title}
+                businessName={promo.businessName}
+                category={promo.categoryName}
+                discount={formatDiscount(promo.discountType, promo.discountValue)}
+                location={promo.location}
+                validUntil={formatDate(promo.endDate)}
+                isVerified={["APPROVED", "ACTIVE"].includes(promo.status)}
+                imageUrl={promo.imageUrl}
+              />
             </motion.div>
           ))}
         </div>
 
         {/* Load More */}
         <div className="mt-12 text-center">
-          <Button variant="outline" size="lg">
-            Load More Promotions
+          <Button variant="outline" size="lg" disabled={isLoading}>
+            {isLoading ? "Loading promotions..." : "Load More Promotions"}
           </Button>
         </div>
       </div>

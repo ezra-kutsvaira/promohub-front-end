@@ -5,52 +5,46 @@ import { Input } from "@/components/ui/input";
 import { Shield, ShieldCheck, FileCheck, Bell, Search, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { roadshowEvents } from "@/data/roadshows";
-
-const featuredPromotions = [
-  {
-    id: "1",
-    title: "Black Friday Electronics Sale - Up to 70% Off",
-    businessName: "TechWorld Zimbabwe",
-    category: "Electronics",
-    discount: "70% OFF",
-    location: "Harare",
-    validUntil: "30 Nov 2025",
-    isVerified: true,
-  },
-  {
-    id: "2",
-    title: "Fresh Groceries Weekend Special",
-    businessName: "FreshMart Stores",
-    category: "Groceries",
-    discount: "35% OFF",
-    location: "Bulawayo",
-    validUntil: "15 Dec 2025",
-    isVerified: true,
-  },
-  {
-    id: "3",
-    title: "Fashion Summer Collection Launch",
-    businessName: "StyleHub Boutique",
-    category: "Fashion",
-    discount: "50% OFF",
-    location: "Harare",
-    validUntil: "20 Dec 2025",
-    isVerified: true,
-  },
-  {
-    id: "4",
-    title: "Restaurant Opening Week - Free Desserts",
-    businessName: "Gourmet Palace",
-    category: "Food & Beverages",
-    discount: "Free Gift",
-    location: "Gweru",
-    validUntil: "10 Dec 2025",
-    isVerified: true,
-  },
-];
+import { useEffect, useState } from "react";
+import { api, type Event, type Promotion } from "@/lib/api";
+import { formatDate, formatDiscount } from "@/lib/format";
+import { toast } from "@/components/ui/sonner";
 
 const Index = () => {
+  const [featuredPromotions, setFeaturedPromotions] = useState<Promotion[]>([]);
+  const [roadshows, setRoadshows] = useState<Event[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadData = async () => {
+      try {
+        const [promotionsResponse, eventsResponse] = await Promise.all([
+          api.getPromotions({ page: "0", size: "4" }),
+          api.getEvents(),
+        ]);
+
+        const promotions = Array.isArray(promotionsResponse)
+          ? promotionsResponse
+          : promotionsResponse.content;
+        const events = Array.isArray(eventsResponse) ? eventsResponse : eventsResponse.content;
+
+        if (isMounted) {
+          setFeaturedPromotions(promotions.slice(0, 4));
+          setRoadshows(events.slice(0, 3));
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load homepage data.";
+        toast.error(message);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -138,7 +132,17 @@ const Index = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: index * 0.1 }}
               >
-                <PromotionCard {...promo} />
+                <PromotionCard
+                  id={promo.id.toString()}
+                  title={promo.title}
+                  businessName={promo.businessName}
+                  category={promo.categoryName}
+                  discount={formatDiscount(promo.discountType, promo.discountValue)}
+                  location={promo.location}
+                  validUntil={formatDate(promo.endDate)}
+                  isVerified={["APPROVED", "ACTIVE"].includes(promo.status)}
+                  imageUrl={promo.imageUrl}
+                />
               </motion.div>
             ))}
           </div>
@@ -160,19 +164,14 @@ const Index = () => {
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {roadshowEvents.slice(0, 3).map((event) => (
+            {roadshows.slice(0, 3).map((event) => (
               <div key={event.id} className="bg-card border border-border rounded-xl p-6">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <h3 className="text-lg font-semibold text-foreground">{event.title}</h3>
-                  {event.badge && (
-                    <span className="text-xs font-semibold uppercase tracking-wide bg-primary/10 text-primary px-2 py-1 rounded-full">
-                      {event.badge}
-                    </span>
-                  )}
                 </div>
-                <p className="text-sm text-muted-foreground mb-3">Hosted by {event.organizer}</p>
+                <p className="text-sm text-muted-foreground mb-3">Hosted by {event.businessName}</p>
                 <p className="text-sm text-muted-foreground mb-4">
-                  {event.dateRange} • {event.location}
+                  {formatDate(event.startDate)} • {event.location}
                 </p>
                 <Button size="sm" variant="outline" asChild>
                   <Link to={`/roadshows/${event.id}`}>View details</Link>
