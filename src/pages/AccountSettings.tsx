@@ -6,21 +6,54 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/lib/auth";
 import { toast } from "@/components/ui/sonner";
+import { api } from "@/lib/api";
+import { useState } from "react";
 
 const AccountSettings = () => {
   const { user, updateUser, signOut } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
 
   if (!user) {
     return null;
   }
 
-  const handleProfileSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleProfileSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const name = String(formData.get("name") ?? user.name);
-    const email = String(formData.get("email") ?? user.email);
-    updateUser({ name, email });
-    toast.success("Your profile details have been updated.");
+    const fullName = String(formData.get("name") ?? user.fullName);
+    const profileImageURL = String(formData.get("profileImageURL") ?? "");
+
+    try {
+      setIsSubmitting(true);
+      await updateUser({ fullName, profileImageURL });
+      toast.success("Your profile details have been updated.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update profile.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const currentPassword = String(formData.get("current-password") ?? "");
+    const newPassword = String(formData.get("new-password") ?? "");
+    const confirmNewPassword = String(formData.get("confirm-new-password") ?? "");
+
+    try {
+      setIsPasswordSubmitting(true);
+      await api.changePassword(user.id, { currentPassword, newPassword, confirmNewPassword });
+      toast.success("Your password has been updated.");
+      event.currentTarget.reset();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update password.";
+      toast.error(message);
+    } finally {
+      setIsPasswordSubmitting(false);
+    }
   };
 
   return (
@@ -45,20 +78,23 @@ const AccountSettings = () => {
               <form className="grid gap-4" onSubmit={handleProfileSubmit}>
                 <div className="grid gap-2">
                   <Label htmlFor="name">Full name</Label>
-                  <Input id="name" name="name" defaultValue={user.name} />
+                  <Input id="name" name="name" defaultValue={user.fullName} />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="email">Email address</Label>
-                  <Input id="email" name="email" type="email" defaultValue={user.email} />
+                  <Input id="email" name="email" type="email" defaultValue={user.email} disabled />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="role">Account role</Label>
-                  <Input id="role" value={user.role} disabled />
+                  <Input id="role" value={user.role.toLowerCase().replace("_", " ")} disabled />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="profileImageURL">Profile image URL</Label>
+                  <Input id="profileImageURL" name="profileImageURL" placeholder="https://..." />
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <Button type="submit">Save changes</Button>
-                  <Button variant="outline" type="button">
-                    Reset password
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Saving..." : "Save changes"}
                   </Button>
                 </div>
               </form>
@@ -96,15 +132,14 @@ const AccountSettings = () => {
               </CardContent>
             </Card>
 
-            {user.role === "business" && (
+            {user.role === "BUSINESS_OWNER" && (
               <Card className="border-border">
                 <CardHeader>
                   <CardTitle>Verification status</CardTitle>
                   <CardDescription>Business trust badges.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  <p>Status: Verified ✅</p>
-                  <p>Documents last reviewed on 12 Oct 2025.</p>
+                  <p>Status: {user.verified ? "Verified ✅" : "Pending review"}</p>
                   <Button variant="outline">View verification record</Button>
                 </CardContent>
               </Card>
@@ -112,11 +147,37 @@ const AccountSettings = () => {
 
             <Card className="border-border">
               <CardHeader>
+                <CardTitle>Change password</CardTitle>
+                <CardDescription>Update your account password securely.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form className="grid gap-4" onSubmit={handlePasswordSubmit}>
+                  <div className="grid gap-2">
+                    <Label htmlFor="current-password">Current password</Label>
+                    <Input id="current-password" name="current-password" type="password" required />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="new-password">New password</Label>
+                    <Input id="new-password" name="new-password" type="password" required />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="confirm-new-password">Confirm new password</Label>
+                    <Input id="confirm-new-password" name="confirm-new-password" type="password" required />
+                  </div>
+                  <Button type="submit" disabled={isPasswordSubmitting}>
+                    {isPasswordSubmitting ? "Updating..." : "Update password"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardHeader>
                 <CardTitle>Security</CardTitle>
                 <CardDescription>Sign out of your account.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="destructive" onClick={signOut}>
+                <Button variant="destructive" onClick={() => void signOut()}>
                   Sign out
                 </Button>
               </CardContent>

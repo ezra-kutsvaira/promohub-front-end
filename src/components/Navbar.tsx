@@ -21,6 +21,7 @@ export const Navbar = () => {
 
   const isDarkMode = resolvedTheme === "dark";
   const isAuthenticated = Boolean(user);
+  const roleLabel = user?.role ? user.role.toLowerCase().replace("_", " ") : "";
 
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
@@ -65,18 +66,18 @@ export const Navbar = () => {
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="gap-2">
                       <User className="h-4 w-4" />
-                      {user?.name.split(" ")[0]}
+                      {user?.fullName.split(" ")[0]}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel className="capitalize">
-                      {user?.role} account
+                      {roleLabel} account
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <Link to="/dashboard">Dashboard</Link>
                     </DropdownMenuItem>
-                    {user?.role !== "business" && (
+                    {user?.role !== "BUSINESS_OWNER" && (
                       <DropdownMenuItem asChild>
                         <Link to="/saved-promotions">Saved promotions</Link>
                       </DropdownMenuItem>
@@ -85,7 +86,7 @@ export const Navbar = () => {
                       <Link to="/account-settings">Account settings</Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={signOut}>Sign out</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void signOut()}>Sign out</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
@@ -181,7 +182,7 @@ export const Navbar = () => {
                 </Button>
                 {isAuthenticated ? (
                   <>
-                    {user?.role !== "business" && (
+                    {user?.role !== "BUSINESS_OWNER" && (
                       <Button variant="outline" asChild>
                         <Link to="/saved-promotions" onClick={() => setMobileMenuOpen(false)}>
                           Saved promotions
@@ -196,7 +197,7 @@ export const Navbar = () => {
                     <Button
                       variant="destructive"
                       onClick={() => {
-                        signOut();
+                        void signOut();
                         setMobileMenuOpen(false);
                       }}
                     >

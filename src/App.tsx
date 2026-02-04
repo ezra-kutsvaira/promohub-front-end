@@ -47,7 +47,7 @@ const App = () => {
               path="/saved-promotions"
               element={
                 <RequireAuth>
-                  <RequireRole allowed={["consumer", "admin"]}>
+                  <RequireRole allowed={["CONSUMER", "CUSTOMER", "ADMIN"]}>
                     <SavedPromotions />
                   </RequireRole>
                 </RequireAuth>
