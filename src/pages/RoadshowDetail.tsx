@@ -28,10 +28,6 @@ const RoadshowDetail = () => {
     );
   }
 
-  const handleSave = () => {
-    toast.success("Event saved! We'll keep it in your saved list.");
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -107,7 +103,9 @@ const RoadshowDetail = () => {
             <h2 className="text-2xl font-semibold text-foreground mb-3">Actions</h2>
             <div className="flex flex-col sm:flex-row gap-3">
               {isAuthenticated ? (
-                <Button onClick={handleSave}>Save event</Button>
+                <Button onClick={() => toast.success("Event saved! We'll keep it in your saved list.")}>
+                  Save event
+                </Button>
               ) : (
                 <Button asChild>
                   <Link to="/login">Save event</Link>

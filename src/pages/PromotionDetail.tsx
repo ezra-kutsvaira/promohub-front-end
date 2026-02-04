@@ -5,33 +5,118 @@ import { Card } from "@/components/ui/card";
 import { ShieldCheck, Calendar, MapPin, AlertCircle, Share2, Flag } from "lucide-react";
 import { motion } from "framer-motion";
 import { useParams, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { api, type Promotion } from "@/lib/api";
+import { formatDate, formatDiscount } from "@/lib/format";
+import { toast } from "@/components/ui/sonner";
+import { useAuth } from "@/lib/auth";
 
 const PromotionDetail = () => {
   const { id } = useParams();
+  const { isAuthenticated } = useAuth();
+  const [promotion, setPromotion] = useState<Promotion | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data - in real app this would come from API
-  const promotion = {
-    id: id || "1",
-    title: "Black Friday Electronics Sale - Up to 70% Off",
-    businessName: "TechWorld Zimbabwe",
-    category: "Electronics",
-    discount: "70% OFF",
-    originalPrice: "$500",
-    discountPrice: "$150",
-    location: "Harare Central, Corner 4th Street & Jason Moyo Ave",
-    validFrom: "25 Nov 2025",
-    validUntil: "30 Nov 2025",
-    isVerified: true,
-    description: "Experience the biggest electronics sale of the year! Get incredible discounts on laptops, smartphones, TVs, and more. Limited stock available. Don't miss out on this once-a-year opportunity to upgrade your tech at unbeatable prices.",
-    terms: [
-      "Valid only at our Harare Central branch",
-      "While stocks last",
-      "Cannot be combined with other offers",
-      "Original receipt required for warranty claims",
-      "Selected items only - see in-store for full list",
-    ],
-    rating: 4.5,
-    reviews: 23,
+  useEffect(() => {
+    let isMounted = true;
+    const loadPromotion = async () => {
+      if (!id) {
+        return;
+      }
+      try {
+        const data = await api.getPromotion(id);
+        if (isMounted) {
+          setPromotion(data);
+        }
+        await api.trackPromotionView(id);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load promotion.";
+        toast.error(message);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadPromotion();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  if (!promotion) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-16 text-center">
+          <h1 className="text-3xl font-bold text-foreground mb-4">Promotion not found</h1>
+          <p className="text-muted-foreground mb-6">
+            {isLoading ? "Loading promotion details..." : "The promotion you are looking for is not available."}
+          </p>
+          <Button asChild>
+            <Link to="/browse">Back to promotions</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const discountLabel = formatDiscount(promotion.discountType, promotion.discountValue);
+  const terms = promotion.termsAndConditions
+    ? promotion.termsAndConditions.split(/\n+/).filter(Boolean)
+    : [];
+  const isVerified = ["APPROVED", "ACTIVE"].includes(promotion.status);
+
+  const handleShare = async () => {
+    try {
+      await navigator.share?.({
+        title: promotion.title,
+        text: promotion.description,
+        url: window.location.href,
+      });
+    } catch {
+      toast.info("Sharing is not supported in this browser.");
+    }
+  };
+
+  const handleReport = async () => {
+    const reason = window.prompt("Please share the reason for reporting this promotion:");
+    if (!reason) {
+      return;
+    }
+    try {
+      await api.reportPromotion({ promotionId: promotion.id, reason });
+      toast.success("Thanks for reporting. Our team will review this promotion.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to submit report.";
+      toast.error(message);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!isAuthenticated) {
+      toast.info("Please sign in to save promotions.");
+      return;
+    }
+    try {
+      await api.savePromotion(promotion.id);
+      toast.success("Promotion saved to your list.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save promotion.";
+      toast.error(message);
+    }
+  };
+
+  const handleRedeem = async () => {
+    try {
+      await api.trackPromotionClick(promotion.id);
+      toast.success("We logged your interest. Redeem this deal in-store with the promo code.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to log engagement.";
+      toast.error(message);
+    }
   };
 
   return (
@@ -63,10 +148,10 @@ const PromotionDetail = () => {
               {/* Image */}
               <div className="relative h-96 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg mb-6 flex items-center justify-center overflow-hidden">
                 <div className="text-center p-8">
-                  <div className="text-6xl font-bold text-primary mb-4">{promotion.discount}</div>
+                  <div className="text-6xl font-bold text-primary mb-4">{discountLabel}</div>
                   <div className="text-2xl font-semibold text-foreground">{promotion.title}</div>
                 </div>
-                {promotion.isVerified && (
+                {isVerified && (
                   <div className="absolute top-4 right-4">
                     <Badge className="bg-verified text-verified-foreground flex items-center gap-1 text-base px-3 py-1">
                       <ShieldCheck className="h-4 w-4" />
@@ -82,16 +167,16 @@ const PromotionDetail = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <h2 className="text-2xl font-bold text-foreground">{promotion.businessName}</h2>
-                      {promotion.isVerified && <ShieldCheck className="h-5 w-5 text-verified" />}
+                      {isVerified && <ShieldCheck className="h-5 w-5 text-verified" />}
                     </div>
-                    <Badge variant="secondary">{promotion.category}</Badge>
+                    <Badge variant="secondary">{promotion.categoryName}</Badge>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={handleShare}>
                       <Share2 className="h-4 w-4 mr-2" />
                       Share
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={handleReport}>
                       <Flag className="h-4 w-4 mr-2" />
                       Report
                     </Button>
@@ -105,7 +190,7 @@ const PromotionDetail = () => {
                   </div>
                   <div className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
-                    {promotion.validFrom} - {promotion.validUntil}
+                    {formatDate(promotion.startDate)} - {formatDate(promotion.endDate)}
                   </div>
                 </div>
               </Card>
@@ -119,14 +204,18 @@ const PromotionDetail = () => {
               {/* Terms & Conditions */}
               <Card className="p-6">
                 <h3 className="text-xl font-semibold mb-4">Terms & Conditions</h3>
-                <ul className="space-y-2">
-                  {promotion.terms.map((term, index) => (
-                    <li key={index} className="flex items-start gap-2 text-muted-foreground">
-                      <span className="text-primary mt-1">•</span>
-                      <span>{term}</span>
-                    </li>
-                  ))}
-                </ul>
+                {terms.length > 0 ? (
+                  <ul className="space-y-2">
+                    {terms.map((term, index) => (
+                      <li key={index} className="flex items-start gap-2 text-muted-foreground">
+                        <span className="text-primary mt-1">•</span>
+                        <span>{term}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted-foreground">No additional terms provided.</p>
+                )}
               </Card>
             </motion.div>
           </div>
@@ -142,18 +231,18 @@ const PromotionDetail = () => {
               {/* Price Card */}
               <Card className="p-6">
                 <div className="text-center mb-4">
-                  <div className="text-sm text-muted-foreground line-through mb-1">
-                    Was {promotion.originalPrice}
-                  </div>
                   <div className="text-4xl font-bold text-primary mb-2">
-                    {promotion.discountPrice}
+                    {discountLabel}
                   </div>
                   <Badge className="bg-destructive text-destructive-foreground font-bold">
-                    Save {promotion.discount}
+                    Save {discountLabel}
                   </Badge>
                 </div>
-                <Button className="w-full" size="lg">
+                <Button className="w-full" size="lg" onClick={handleRedeem}>
                   Get This Deal
+                </Button>
+                <Button className="w-full mt-3" variant="outline" onClick={handleSave}>
+                  Save Promotion
                 </Button>
               </Card>
 
@@ -166,27 +255,28 @@ const PromotionDetail = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Starts:</span>
-                    <span className="font-medium">{promotion.validFrom}</span>
+                    <span className="font-medium">{formatDate(promotion.startDate)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Ends:</span>
-                    <span className="font-medium">{promotion.validUntil}</span>
+                    <span className="font-medium">{formatDate(promotion.endDate)}</span>
                   </div>
                 </div>
               </Card>
 
-              {/* Trust Badge */}
-              <Card className="p-6 bg-verified/5 border-verified/20">
-                <div className="flex items-start gap-3">
-                  <ShieldCheck className="h-6 w-6 text-verified flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-semibold text-verified mb-1">Verified Business</h4>
-                    <p className="text-sm text-muted-foreground">
-                      This promotion is from a verified business. All documents have been reviewed by our team.
-                    </p>
+              {isVerified && (
+                <Card className="p-6 bg-verified/5 border-verified/20">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="h-6 w-6 text-verified flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-semibold text-verified mb-1">Verified Business</h4>
+                      <p className="text-sm text-muted-foreground">
+                        This promotion is from a verified business. All documents have been reviewed by our team.
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              )}
 
               {/* Safety Info */}
               <Card className="p-6 bg-muted/50">

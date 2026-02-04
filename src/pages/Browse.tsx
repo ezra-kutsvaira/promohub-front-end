@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
+import { useMemo, useState } from "react";
 
 const allPromotions = [
   {
@@ -69,6 +70,18 @@ const allPromotions = [
 ];
 
 const Browse = () => {
+  const [search, setSearch] = useState("");
+
+  const filteredPromotions = useMemo(() => {
+    if (!search) {
+      return allPromotions;
+    }
+    return allPromotions.filter((promo) =>
+      promo.title.toLowerCase().includes(search.toLowerCase()) ||
+      promo.businessName.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [search]);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -92,6 +105,8 @@ const Browse = () => {
               <Input
                 placeholder="Search promotions..."
                 className="pl-10 h-12"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
               />
             </div>
             <select className="h-12 px-4 rounded-md border border-input bg-background text-foreground">
@@ -119,7 +134,7 @@ const Browse = () => {
         {/* Results Info */}
         <div className="flex items-center justify-between mb-6">
           <p className="text-muted-foreground">
-            Showing <span className="font-semibold text-foreground">{allPromotions.length}</span> verified promotions
+            Showing <span className="font-semibold text-foreground">{filteredPromotions.length}</span> verified promotions
           </p>
           <select className="px-4 py-2 rounded-md border border-input bg-background text-foreground text-sm">
             <option>Sort by: Newest</option>
@@ -131,7 +146,7 @@ const Browse = () => {
 
         {/* Promotions Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {allPromotions.map((promo, index) => (
+          {filteredPromotions.map((promo, index) => (
             <motion.div
               key={promo.id}
               initial={{ opacity: 0, y: 20 }}
