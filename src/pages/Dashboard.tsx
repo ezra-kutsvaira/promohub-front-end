@@ -4,16 +4,70 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { ArrowUpRight, BookmarkCheck, CalendarCheck, Megaphone, Sparkles, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { api, type PlatformAnalytics, type Promotion, type SavedPromotion } from "@/lib/api";
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const [savedPromotions, setSavedPromotions] = useState<SavedPromotion[]>([]);
+  const [savedPromotionDetails, setSavedPromotionDetails] = useState<Promotion[]>([]);
+  const [notificationsCount, setNotificationsCount] = useState(0);
+  const [platformAnalytics, setPlatformAnalytics] = useState<PlatformAnalytics | null>(null);
 
   if (!user) {
     return null;
   }
 
-  const isBusiness = user.role === "business";
-  const isAdmin = user.role === "admin";
+  const isBusiness = user.role === "BUSINESS_OWNER";
+  const isAdmin = user.role === "ADMIN";
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDashboard = async () => {
+      try {
+        if (!isBusiness) {
+          const saved = await api.getSavedPromotions();
+          if (!isMounted) return;
+          setSavedPromotions(saved);
+
+          const details = await Promise.all(
+            saved.map((item) => api.getPromotion(item.promotionId).catch(() => null))
+          );
+          if (!isMounted) return;
+          setSavedPromotionDetails(details.filter(Boolean) as Promotion[]);
+
+          const notifications = await api.getNotifications();
+          if (!isMounted) return;
+          setNotificationsCount(notifications.filter((item) => !item.read).length);
+        }
+
+        if (isAdmin) {
+          const analytics = await api.getPlatformAnalytics();
+          if (!isMounted) return;
+          setPlatformAnalytics(analytics);
+        }
+      } catch {
+        // Silently ignore dashboard errors to keep UI responsive.
+      }
+    };
+
+    loadDashboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdmin, isBusiness]);
+
+  const expiringSoonCount = useMemo(() => {
+    const today = new Date();
+    const cutoff = new Date();
+    cutoff.setDate(today.getDate() + 7);
+    return savedPromotionDetails.filter((promotion) => {
+      const endDate = new Date(`${promotion.endDate}T00:00:00`);
+      return endDate >= today && endDate <= cutoff;
+    }).length;
+  }, [savedPromotionDetails]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -23,7 +77,7 @@ const Dashboard = () => {
         <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-              Welcome back, {user.name.split(" ")[0]}
+              Welcome back, {user.fullName.split(" ")[0]}
             </h1>
             <p className="text-muted-foreground">
               Here is a snapshot of your PromoHub activity and tailored next steps.
@@ -31,7 +85,7 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="capitalize">
-              {user.role} account
+              {user.role.toLowerCase().replace("_", " ")} account
             </Badge>
             <Button asChild>
               <a href="/account-settings">
@@ -47,21 +101,27 @@ const Dashboard = () => {
               <CardTitle className="text-lg">Saved promotions</CardTitle>
               <CardDescription>Deals ready for redemption.</CardDescription>
             </CardHeader>
-            <CardContent className="text-3xl font-semibold">8</CardContent>
+            <CardContent className="text-3xl font-semibold">
+              {isBusiness ? "—" : savedPromotions.length}
+            </CardContent>
           </Card>
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-lg">Upcoming expiries</CardTitle>
               <CardDescription>Promotions closing this week.</CardDescription>
             </CardHeader>
-            <CardContent className="text-3xl font-semibold">3</CardContent>
+            <CardContent className="text-3xl font-semibold">
+              {isBusiness ? "—" : expiringSoonCount}
+            </CardContent>
           </Card>
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-lg">Messages</CardTitle>
               <CardDescription>Updates from PromoHub support.</CardDescription>
             </CardHeader>
-            <CardContent className="text-3xl font-semibold">2</CardContent>
+            <CardContent className="text-3xl font-semibold">
+              {isBusiness ? "—" : notificationsCount}
+            </CardContent>
           </Card>
         </section>
 
@@ -117,7 +177,7 @@ const Dashboard = () => {
               <CardDescription>What your account unlocks.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
-              {user.role === "consumer" && (
+              {user.role === "CONSUMER" && (
                 <>
                   <div className="flex items-start gap-3">
                     <Sparkles className="mt-0.5 h-4 w-4 text-primary" />
@@ -157,7 +217,7 @@ const Dashboard = () => {
           </Card>
         </section>
 
-        {isAdmin && (
+        {isAdmin && platformAnalytics && (
           <section className="grid gap-4 md:grid-cols-2">
             <Card className="border-border">
               <CardHeader>
@@ -165,8 +225,8 @@ const Dashboard = () => {
                 <CardDescription>Platform verification queue.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-muted-foreground">
-                <p>12 new businesses awaiting verification.</p>
-                <p>4 promotions flagged for review.</p>
+                <p>{platformAnalytics.pendingBusinesses} new businesses awaiting verification.</p>
+                <p>{platformAnalytics.flaggedPromotions} promotions flagged for review.</p>
                 <Button variant="outline">Open moderation console</Button>
               </CardContent>
             </Card>
@@ -176,8 +236,8 @@ const Dashboard = () => {
                 <CardDescription>Trust & safety metrics.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-muted-foreground">
-                <p>98% verification SLA met this week.</p>
-                <p>Average review time: 14 hours.</p>
+                <p>Platform trust score: {platformAnalytics.platformTrustScore}%</p>
+                <p>Reports resolved: {platformAnalytics.resolvedReports}</p>
               </CardContent>
             </Card>
           </section>

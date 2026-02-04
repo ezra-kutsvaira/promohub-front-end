@@ -5,36 +5,81 @@ import { motion } from "framer-motion";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { roadshowEvents } from "@/data/roadshows";
+import { useEffect } from "react";
+import { api, type Event } from "@/lib/api";
+import { formatDateRange } from "@/lib/format";
+import { toast } from "@/components/ui/sonner";
 
-const categoryOptions = ["All Categories", "Expo", "Product launch", "Trade fair", "Promo event"];
+const categoryOptions = ["All Statuses", "PENDING", "APPROVED", "REJECTED"];
 const locationOptions = ["All Locations", "Harare", "Bulawayo", "Mutare", "Gweru"];
 const timeframeOptions = ["Upcoming", "This week", "This month"];
 
 const Roadshows = () => {
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All Categories");
+  const [category, setCategory] = useState("All Statuses");
   const [location, setLocation] = useState("All Locations");
   const [timeframe, setTimeframe] = useState("Upcoming");
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadEvents = async () => {
+      try {
+        const response = await api.getEvents();
+        const content = Array.isArray(response) ? response : response.content;
+        if (isMounted) {
+          setEvents(content);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load events.";
+        toast.error(message);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadEvents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredEvents = useMemo(() => {
-    return roadshowEvents.filter((event) => {
+    return events.filter((event) => {
       const matchesSearch =
         event.title.toLowerCase().includes(search.toLowerCase()) ||
-        event.organizer.toLowerCase().includes(search.toLowerCase());
+        event.businessName.toLowerCase().includes(search.toLowerCase());
       const matchesCategory =
-        category === "All Categories" || event.category === category;
+        category === "All Statuses" || event.status === category;
       const matchesLocation =
         location === "All Locations" || event.location.toLowerCase().includes(location.toLowerCase());
-      const matchesTimeframe = timeframe === "Upcoming" ? true : event.timeframe === timeframe;
+      const matchesTimeframe = (() => {
+        if (timeframe === "Upcoming") {
+          return true;
+        }
+        const startDate = new Date(`${event.startDate}T00:00:00`);
+        const now = new Date();
+        if (timeframe === "This week") {
+          const weekAhead = new Date();
+          weekAhead.setDate(now.getDate() + 7);
+          return startDate >= now && startDate <= weekAhead;
+        }
+        const monthAhead = new Date();
+        monthAhead.setMonth(now.getMonth() + 1);
+        return startDate >= now && startDate <= monthAhead;
+      })();
 
       return matchesSearch && matchesCategory && matchesLocation && matchesTimeframe;
     });
-  }, [category, location, search, timeframe]);
+  }, [category, location, search, timeframe, events]);
 
   const handleReset = () => {
     setSearch("");
-    setCategory("All Categories");
+    setCategory("All Statuses");
     setLocation("All Locations");
     setTimeframe("Upcoming");
   };
@@ -102,7 +147,7 @@ const Roadshows = () => {
         {filteredEvents.length === 0 ? (
           <div className="bg-card border border-border rounded-lg p-10 text-center">
             <h2 className="text-2xl font-semibold text-foreground mb-2">
-              There are no upcoming roadshows or events at the moment.
+              {isLoading ? "Loading events..." : "There are no upcoming roadshows or events at the moment."}
             </h2>
             <p className="text-muted-foreground mb-6">
               Check back soon or browse current promotions.
@@ -124,33 +169,30 @@ const Roadshows = () => {
                 <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col gap-4">
                   <div className="flex items-start justify-between gap-3">
                     <h3 className="text-xl font-semibold text-foreground">{event.title}</h3>
-                    {event.badge && (
-                      <span className="text-xs font-semibold uppercase tracking-wide bg-primary/10 text-primary px-2 py-1 rounded-full">
-                        {event.badge}
-                      </span>
-                    )}
+                    <span className="text-xs font-semibold uppercase tracking-wide bg-primary/10 text-primary px-2 py-1 rounded-full">
+                      {event.status}
+                    </span>
                   </div>
-                  <p className="text-sm text-muted-foreground">Hosted by {event.organizer}</p>
+                  <p className="text-sm text-muted-foreground">Hosted by {event.businessName}</p>
                   <div className="grid gap-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{event.dateRange}</span>
+                      <span>{formatDateRange(event.startDate, event.endDate)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>{event.timeRange}</span>
+                      <span>All day</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
                       <span>{event.location}</span>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">{event.description}</p>
+                  <p className="text-sm text-muted-foreground">{event.description || "No description provided."}</p>
                   <div className="mt-auto flex flex-col sm:flex-row gap-3">
                     <Button asChild>
                       <Link to={`/roadshows/${event.id}`}>View details</Link>
                     </Button>
-                    <Button variant="outline">Save event</Button>
                   </div>
                 </div>
               </motion.div>

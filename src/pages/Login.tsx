@@ -5,23 +5,32 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import { ShieldCheck } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth, UserRole } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 
 const Login = () => {
   const { signIn } = useAuth();
   const navigate = useNavigate();
-  const [role, setRole] = useState<UserRole>("consumer");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "");
-    const name = email ? email.split("@")[0].replace(".", " ") : "PromoHub User";
+    const password = String(formData.get("password") ?? "");
+    const mfaCode = String(formData.get("mfaCode") ?? "").trim() || undefined;
 
-    signIn({ name, email, role });
-    toast.success("Welcome back! We'll take you to your dashboard shortly.");
-    navigate("/dashboard");
+    try {
+      setIsSubmitting(true);
+      await signIn({ email, password, mfaCode });
+      toast.success("Welcome back! We'll take you to your dashboard shortly.");
+      navigate("/dashboard");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Login failed. Please try again.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -55,20 +64,10 @@ const Login = () => {
                   <Input id="password" type="password" placeholder="••••••••" required />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground" htmlFor="role">
-                    Log in as
+                  <label className="text-sm font-medium text-foreground" htmlFor="mfaCode">
+                    MFA code (optional)
                   </label>
-                  <select
-                    id="role"
-                    name="role"
-                    className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
-                    value={role}
-                    onChange={(event) => setRole(event.target.value as UserRole)}
-                  >
-                    <option value="consumer">Consumer</option>
-                    <option value="business">Business</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  <Input id="mfaCode" name="mfaCode" placeholder="123456" />
                 </div>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
                   <span>Need help signing in?</span>
@@ -76,8 +75,8 @@ const Login = () => {
                     Contact support
                   </a>
                 </div>
-                <Button className="w-full" type="submit">
-                  Log In
+                <Button className="w-full" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Signing in..." : "Log In"}
                 </Button>
               </form>
               <div className="mt-6 text-center text-sm text-muted-foreground">
