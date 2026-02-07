@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api, type Event } from "@/lib/api";
 import { formatDate, formatDateRange } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
+import { landingEvents } from "@/data/landing";
 
 const RoadshowDetail = () => {
   const { id } = useParams();
@@ -24,8 +25,14 @@ const RoadshowDetail = () => {
           setEvent(data);
         }
       } catch (error) {
+         if (isMounted && id) {
+          const fallbackEvent = landingEvents.find((item) => item.id.toString() === id);
+          if (fallbackEvent) {
+            setEvent(fallbackEvent);
+          }
+        }
         const message = error instanceof Error ? error.message : "Unable to load event.";
-        toast.error(message);
+         toast.warning(`${message} Showing featured event details instead.`);
       } finally {
         if (isMounted) {
           setIsLoading(false);

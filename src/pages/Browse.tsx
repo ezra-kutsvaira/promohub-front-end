@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type Promotion } from "@/lib/api";
 import { formatDate, formatDiscount } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
+import { landingPromotions } from "@/data/landing";
 
 const Browse = () => {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -21,11 +22,14 @@ const Browse = () => {
         const response = await api.getPromotions();
         const content = Array.isArray(response) ? response : response.content;
         if (isMounted) {
-          setPromotions(content);
+          setPromotions(content.length > 0 ? content : landingPromotions);
         }
       } catch (error) {
+        if(isMounted){
+          setPromotions(landingPromotions);
+        }
         const message = error instanceof Error ? error.message : "Unable to load promotions.";
-        toast.error(message);
+        toast.warning(`${message} Showing featured promotions instead.`);
       } finally {
         if (isMounted) {
           setIsLoading(false);

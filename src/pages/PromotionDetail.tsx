@@ -10,6 +10,7 @@ import { api, type Promotion } from "@/lib/api";
 import { formatDate, formatDiscount } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/lib/auth";
+import { landingPromotions } from "@/data/landing";
 
 const PromotionDetail = () => {
   const { id } = useParams();
@@ -30,8 +31,14 @@ const PromotionDetail = () => {
         }
         await api.trackPromotionView(id);
       } catch (error) {
+         if (isMounted && id) {
+          const fallbackPromotion = landingPromotions.find((item) => item.id.toString() === id);
+          if (fallbackPromotion) {
+            setPromotion(fallbackPromotion);
+          }
+        }
         const message = error instanceof Error ? error.message : "Unable to load promotion.";
-        toast.error(message);
+        toast.warning(`${message} Showing cached promotion details instead.`);
       } finally {
         if (isMounted) {
           setIsLoading(false);

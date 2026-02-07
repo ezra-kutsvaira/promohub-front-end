@@ -9,6 +9,7 @@ import { useEffect } from "react";
 import { api, type Event } from "@/lib/api";
 import { formatDateRange } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
+import { landingEvents } from "@/data/landing";
 
 const categoryOptions = ["All Statuses", "PENDING", "APPROVED", "REJECTED"];
 const locationOptions = ["All Locations", "Harare", "Bulawayo", "Mutare", "Gweru"];
@@ -29,11 +30,14 @@ const Roadshows = () => {
         const response = await api.getEvents();
         const content = Array.isArray(response) ? response : response.content;
         if (isMounted) {
-          setEvents(content);
+          setEvents(content.length > 0 ? content : landingEvents);
         }
       } catch (error) {
+        if (isMounted) {
+          setEvents(landingEvents);
+        }
         const message = error instanceof Error ? error.message : "Unable to load events.";
-        toast.error(message);
+        toast.warning(`${message} Showing featured events instead.`);
       } finally {
         if (isMounted) {
           setIsLoading(false);
