@@ -55,13 +55,13 @@ const Login = () => {
                   <label className="text-sm font-medium text-foreground" htmlFor="email">
                     Email address
                   </label>
-                  <Input id="email" type="email" placeholder="you@business.co.zw" required />
+                  <Input id="email" name="email" type="email" placeholder="you@business.co.zw" required />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground" htmlFor="password">
                     Password
                   </label>
-                  <Input id="password" type="password" placeholder="••••••••" required />
+                  <Input id="password" name="password" type="password" placeholder="••••••••" required />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground" htmlFor="mfaCode">

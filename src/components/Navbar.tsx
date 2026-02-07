@@ -47,9 +47,14 @@ export const Navbar = () => {
               About
             </Link>
             {isAuthenticated && (
-              <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
-                Dashboard
-              </Link>
+              <>
+                <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
+                  Dashboard
+                </Link>
+                <Link to="/operations-console" className="text-foreground hover:text-primary transition-colors">
+                  Operations
+                </Link>
+              </>
             )}
             <div className="flex items-center gap-3 ml-4">
               <Button
@@ -84,6 +89,9 @@ export const Navbar = () => {
                     )}
                     <DropdownMenuItem asChild>
                       <Link to="/account-settings">Account settings</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/operations-console">Operations console</Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => void signOut()}>Sign out</DropdownMenuItem>
@@ -162,13 +170,22 @@ export const Navbar = () => {
                 About
               </Link>
               {isAuthenticated && (
-                <Link
-                  to="/dashboard"
-                  className="text-foreground hover:text-primary transition-colors py-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
+                <>
+                  <Link
+                    to="/dashboard"
+                    className="text-foreground hover:text-primary transition-colors py-2"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    to="/operations-console"
+                    className="text-foreground hover:text-primary transition-colors py-2"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Operations
+                  </Link>
+                </>
               )}
               <div className="flex flex-col gap-2 pt-2">
                 <Button
