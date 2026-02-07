@@ -75,6 +75,21 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
   return payload.data;
 };
 
+const apiRequestWithFallback = async <T>(
+  primaryPath: string,
+  fallbackPath: string,
+  options: RequestOptions = {}
+): Promise<T> => {
+  try {
+    return await apiRequest<T>(primaryPath, options);
+  } catch (error) {
+    if (error instanceof Error && error.message.toLowerCase() === "not found") {
+      return apiRequest<T>(fallbackPath, options);
+    }
+    throw error;
+  }
+};
+
 export type AuthPayload = {
   accessToken: string;
   refreshToken: string;
@@ -343,10 +358,25 @@ export const api = {
   getBusiness: (id: number | string) => apiRequest<Business>(`/api/businesses/${id}`),
   getBusinesses: () => apiRequest<Business[]>("/api/businesses"),
   deleteBusiness: (id: number | string) => apiRequest<void>(`/api/businesses/${id}`, { method: "DELETE" }),
-  requestBusinessVerification: (payload: BusinessVerificationRequest) => apiRequest(`/api/business-verification`, { method: "POST", body: JSON.stringify(payload) }),
-  getBusinessVerification: (id: number | string) => apiRequest<BusinessVerificationReview>(`/api/business-verification/${id}`),
-  approveBusinessVerification: (id: number | string) => apiRequest<void>(`/api/business-verification/${id}/approve`, { method: "POST" }),
-  rejectBusinessVerification: (id: number | string, reason?: string) => apiRequest<void>(`/api/business-verification/${id}/reject`, { method: "POST", body: JSON.stringify(reason ? { reason } : {}) }),
+  requestBusinessVerification: (payload: BusinessVerificationRequest) => apiRequestWithFallback(
+    `/api/business-verification`,
+    `/api/business-verifications`,
+    { method: "POST", body: JSON.stringify(payload) }
+  ),
+  getBusinessVerification: (id: number | string) => apiRequestWithFallback<BusinessVerificationReview>(
+    `/api/business-verification/${id}`,
+    `/api/business-verifications/${id}`
+  ),
+  approveBusinessVerification: (id: number | string) => apiRequestWithFallback<void>(
+    `/api/business-verification/${id}/approve`,
+    `/api/business-verifications/${id}/approve`,
+    { method: "POST" }
+  ),
+  rejectBusinessVerification: (id: number | string, reason?: string) => apiRequestWithFallback<void>(
+    `/api/business-verification/${id}/reject`,
+    `/api/business-verifications/${id}/reject`,
+    { method: "POST", body: JSON.stringify(reason ? { reason } : {}) }
+  ),
 
   reportPromotion: (payload: { promotionId: number; reason: string; details?: string }) => apiRequest(`/api/reports`, { method: "POST", body: JSON.stringify(payload) }),
   getReport: (id: number | string) => apiRequest<ReportItem>(`/api/reports/${id}`),
