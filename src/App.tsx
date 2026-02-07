@@ -15,6 +15,7 @@ import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import SavedPromotions from "./pages/SavedPromotions";
 import AccountSettings from "./pages/AccountSettings";
+import OperationsConsole from "./pages/OperationsConsole";
 import { RequireAuth, RequireRole } from "./components/RouteGuard";
 
 const queryClient = new QueryClient();
@@ -58,6 +59,14 @@ const App = () => {
               element={
                 <RequireAuth>
                   <AccountSettings />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/operations-console"
+              element={
+                <RequireAuth>
+                  <OperationsConsole />
                 </RequireAuth>
               }
             />

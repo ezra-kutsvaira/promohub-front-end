@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { ArrowUpRight, BookmarkCheck, CalendarCheck, Megaphone, Sparkles, Users } from "lucide-react";
+import { Link } from "react-router-dom";
+import { toast } from "@/components/ui/sonner";
 import { useEffect, useMemo, useState } from "react";
 import { api, type PlatformAnalytics, type Promotion, type SavedPromotion } from "@/lib/api";
 
@@ -152,7 +154,7 @@ const Dashboard = () => {
                     Set notifications so you never miss a closing promotion.
                   </p>
                 </div>
-                <Button variant="outline" className="ml-auto">
+                <Button variant="outline" className="ml-auto" onClick={() => toast.info("Use Account Settings to configure notification subscriptions.")}>
                   Set reminder
                 </Button>
               </div>
@@ -165,7 +167,7 @@ const Dashboard = () => {
                       Publish a verified deal and notify your audience instantly.
                     </p>
                   </div>
-                  <Button className="ml-auto">Create promo</Button>
+                  <Button className="ml-auto" asChild><Link to="/operations-console">Create promo</Link></Button>
                 </div>
               )}
             </CardContent>
@@ -227,7 +229,7 @@ const Dashboard = () => {
               <CardContent className="space-y-2 text-muted-foreground">
                 <p>{platformAnalytics.pendingBusinesses} new businesses awaiting verification.</p>
                 <p>{platformAnalytics.flaggedPromotions} promotions flagged for review.</p>
-                <Button variant="outline">Open moderation console</Button>
+                <Button variant="outline" asChild><Link to="/operations-console">Open moderation console</Link></Button>
               </CardContent>
             </Card>
             <Card className="border-border">

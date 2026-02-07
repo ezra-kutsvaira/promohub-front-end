@@ -18,12 +18,8 @@ export type PageResponse<T> = {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 const buildUrl = (path: string) => {
-  if (path.startsWith("http")) {
-    return path;
-  }
-  if (!API_BASE_URL) {
-    return path;
-  }
+  if (path.startsWith("http")) return path;
+  if (!API_BASE_URL) return path;
   return `${API_BASE_URL}${path}`;
 };
 
@@ -34,9 +30,7 @@ type RequestOptions = RequestInit & {
 
 const parseJson = async (response: Response) => {
   const text = await response.text();
-  if (!text) {
-    return null;
-  }
+  if (!text) return null;
   try {
     return JSON.parse(text);
   } catch {
@@ -47,17 +41,11 @@ const parseJson = async (response: Response) => {
 const refreshSession = async (refreshToken: string): Promise<AuthSession | null> => {
   const response = await fetch(buildUrl(`/api/auth/refresh?refreshToken=${encodeURIComponent(refreshToken)}`), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
   });
 
   const payload = (await parseJson(response)) as ApiResponse<AuthSession> | null;
-
-  if (!response.ok || !payload?.success) {
-    return null;
-  }
-
+  if (!response.ok || !payload?.success) return null;
   return payload.data;
 };
 
@@ -65,18 +53,10 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
   const session = loadSession();
   const headers = new Headers(options.headers ?? {});
 
-  if (!headers.has("Content-Type") && options.body) {
-    headers.set("Content-Type", "application/json");
-  }
+  if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
+  if (!options.skipAuth && session?.accessToken) headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
 
-  if (!options.skipAuth && session?.accessToken) {
-    headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
-  }
-
-  const response = await fetch(buildUrl(path), {
-    ...options,
-    headers,
-  });
+  const response = await fetch(buildUrl(path), { ...options, headers });
 
   if (response.status === 401 && session?.refreshToken && !options.skipRefresh) {
     const refreshed = await refreshSession(session.refreshToken);
@@ -89,13 +69,8 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
 
   const payload = (await parseJson(response)) as ApiResponse<T> | null;
 
-  if (!response.ok || !payload) {
-    throw new Error(payload?.message ?? response.statusText);
-  }
-
-  if (!payload.success) {
-    throw new Error(payload.message ?? "Request failed");
-  }
+  if (!response.ok || !payload) throw new Error(payload?.message ?? response.statusText);
+  if (!payload.success) throw new Error(payload.message ?? "Request failed");
 
   return payload.data;
 };
@@ -111,17 +86,17 @@ export type AuthPayload = {
   verified: boolean;
 };
 
-export type LoginRequest = {
-  email: string;
-  password: string;
-  mfaCode?: string;
-};
+export type LoginRequest = { email: string; password: string; mfaCode?: string };
 
-export type RegisterRequest = {
+export type RegisterRequest = { fullName: string; email: string; password: string; role: string };
+
+export type UserProfile = {
+  id: number;
   fullName: string;
   email: string;
-  password: string;
   role: string;
+  verified: boolean;
+  createdAt?: string;
 };
 
 export type BusinessCreateRequest = {
@@ -157,12 +132,25 @@ export type Business = {
   verifiedAt: string;
 };
 
+export type MfaSetupResponse = { secret: string; qrCodeUrl?: string };
+
 export type BusinessVerificationRequest = {
   businessId: number;
   vatNumber: string;
   tinNumber: string;
   ownerNationalId: string;
   supportingDocumentsUrl?: string;
+};
+
+export type BusinessVerificationReview = {
+  id: number;
+  businessId: number;
+  status: string;
+  vatNumber?: string;
+  tinNumber?: string;
+  ownerNationalId?: string;
+  supportingDocumentsUrl?: string;
+  submittedAt?: string;
 };
 
 export type Promotion = {
@@ -187,6 +175,30 @@ export type Promotion = {
   updatedAt: string;
 };
 
+export type PromotionUpsertRequest = {
+  businessId: number;
+  categoryId: number;
+  title: string;
+  description: string;
+  imageUrl?: string;
+  startDate: string;
+  endDate: string;
+  promoCode: string;
+  discountType: string;
+  discountValue: number;
+  termsAndConditions: string;
+  location: string;
+};
+
+export type PromotionEngagement = {
+  promotionId: number;
+  views: number;
+  clicks: number;
+  redemptions: number;
+  clickThroughRate: number;
+  redemptionRate: number;
+};
+
 export type Event = {
   id: number;
   businessId: number;
@@ -200,6 +212,16 @@ export type Event = {
   status: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type EventUpsertRequest = {
+  businessId: number;
+  title: string;
+  description: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+  perks?: string;
 };
 
 export type SavedPromotion = {
@@ -216,6 +238,18 @@ export type NotificationItem = {
   message: string;
   read: boolean;
   createdAt: string;
+};
+
+export type NotificationSubscription = { id: number; channel: string; destination: string; enabled: boolean };
+
+export type ReportItem = {
+  id: number;
+  promotionId?: number;
+  eventId?: number;
+  reason: string;
+  details?: string;
+  status: string;
+  createdAt?: string;
 };
 
 export type PlatformAnalytics = {
@@ -241,55 +275,89 @@ export type PlatformAnalytics = {
   platformTrustScore: number;
 };
 
+export type BusinessAnalytics = {
+  businessId: number;
+  promotions: number;
+  views: number;
+  clicks: number;
+  redemptions: number;
+  engagementRate: number;
+};
+
+export type SecurityAuditLog = {
+  id: number;
+  actorId: number;
+  action: string;
+  targetType: string;
+  targetId?: number;
+  createdAt: string;
+};
+
 export const api = {
-  login: (payload: LoginRequest) =>
-    apiRequest<AuthPayload>("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify(payload),
-      skipAuth: true,
-    }),
-  register: (payload: RegisterRequest) =>
-    apiRequest<AuthPayload>("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify(payload),
-      skipAuth: true,
-    }),
-  logout: (refreshToken: string) =>
-    apiRequest<void>("/api/auth/logout", {
-      method: "POST",
-      body: JSON.stringify({ refreshToken }),
-    }),
+  login: (payload: LoginRequest) => apiRequest<AuthPayload>("/api/auth/login", { method: "POST", body: JSON.stringify(payload), skipAuth: true }),
+  register: (payload: RegisterRequest) => apiRequest<AuthPayload>("/api/auth/register", { method: "POST", body: JSON.stringify(payload), skipAuth: true }),
+  logout: (refreshToken: string) => apiRequest<void>("/api/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
+  requestPasswordReset: (email: string) => apiRequest<void>("/api/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email }), skipAuth: true }),
+  confirmPasswordReset: (payload: { token: string; newPassword: string; confirmNewPassword: string }) => apiRequest<void>("/api/auth/password-reset/confirm", { method: "POST", body: JSON.stringify(payload), skipAuth: true }),
+
   getPromotions: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
     return apiRequest<PageResponse<Promotion>>(`/api/promotions${query}`, { skipAuth: true });
   },
-  getPromotion: (id: string | number) =>
-    apiRequest<Promotion>(`/api/promotions/${id}`, { skipAuth: true }),
-  trackPromotionView: (id: string | number) =>
-    apiRequest(`/api/promotions/${id}/view`, { method: "POST", skipAuth: true }),
-  trackPromotionClick: (id: string | number) =>
-    apiRequest(`/api/promotions/${id}/click`, { method: "POST", skipAuth: true }),
-  trackPromotionRedeem: (id: string | number) =>
-    apiRequest(`/api/promotions/${id}/redeem`, { method: "POST", skipAuth: true }),
+  getPromotion: (id: string | number) => apiRequest<Promotion>(`/api/promotions/${id}`, { skipAuth: true }),
+  createPromotion: (payload: PromotionUpsertRequest) => apiRequest<Promotion>("/api/promotions", { method: "POST", body: JSON.stringify(payload) }),
+  updatePromotion: (id: string | number, payload: PromotionUpsertRequest) => apiRequest<Promotion>(`/api/promotions/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deletePromotion: (id: string | number) => apiRequest<void>(`/api/promotions/${id}`, { method: "DELETE" }),
+  getPromotionEngagement: (id: string | number) => apiRequest<PromotionEngagement>(`/api/promotions/${id}/engagement`),
+  trackPromotionView: (id: string | number) => apiRequest(`/api/promotions/${id}/view`, { method: "POST", skipAuth: true }),
+  trackPromotionClick: (id: string | number) => apiRequest(`/api/promotions/${id}/click`, { method: "POST", skipAuth: true }),
+  trackPromotionRedeem: (id: string | number) => apiRequest(`/api/promotions/${id}/redeem`, { method: "POST", skipAuth: true }),
+
   getEvents: () => apiRequest<PageResponse<Event> | Event[]>("/api/events", { skipAuth: true }),
   getEvent: (id: string | number) => apiRequest<Event>(`/api/events/${id}`, { skipAuth: true }),
+  createEvent: (payload: EventUpsertRequest) => apiRequest<Event>("/api/events", { method: "POST", body: JSON.stringify(payload) }),
+  updateEvent: (id: string | number, payload: EventUpsertRequest) => apiRequest<Event>(`/api/events/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteEvent: (id: string | number) => apiRequest<void>(`/api/events/${id}`, { method: "DELETE" }),
+
   getSavedPromotions: () => apiRequest<SavedPromotion[]>("/api/users/saved-promotions"),
-  savePromotion: (promotionId: string | number) =>
-    apiRequest(`/api/users/saved-promotions/${promotionId}`, { method: "POST" }),
-  removeSavedPromotion: (promotionId: string | number) =>
-    apiRequest(`/api/users/saved-promotions/${promotionId}`, { method: "DELETE" }),
+  savePromotion: (promotionId: string | number) => apiRequest(`/api/users/saved-promotions/${promotionId}`, { method: "POST" }),
+  removeSavedPromotion: (promotionId: string | number) => apiRequest(`/api/users/saved-promotions/${promotionId}`, { method: "DELETE" }),
   getNotifications: () => apiRequest<NotificationItem[]>("/api/users/notifications"),
-  updateUser: (id: number, payload: { fullName: string; password?: string; profileImageURL?: string }) =>
-    apiRequest(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  changePassword: (
-    id: number,
-    payload: { currentPassword: string; newPassword: string; confirmNewPassword: string }
-  ) => apiRequest(`/api/users/${id}/change-password`, { method: "POST", body: JSON.stringify(payload) }),
-  createBusiness: (payload: BusinessCreateRequest) =>
-    apiRequest<Business>(`/api/businesses`, { method: "POST", body: JSON.stringify(payload) }),
-  requestBusinessVerification: (payload: BusinessVerificationRequest) =>
-    apiRequest(`/api/business-verification`, { method: "POST", body: JSON.stringify(payload) }),
-  reportPromotion: (payload: { promotionId: number; reason: string; details?: string }) =>
-    apiRequest(`/api/reports`, { method: "POST", body: JSON.stringify(payload) }),
+  markNotificationRead: (notificationId: number | string) => apiRequest<void>(`/api/users/notifications/${notificationId}/read`, { method: "POST" }),
+  getNotificationSubscriptions: () => apiRequest<NotificationSubscription[]>("/api/users/notification-subscriptions"),
+  createNotificationSubscription: (payload: { channel: string; destination: string }) => apiRequest<NotificationSubscription>("/api/users/notification-subscriptions", { method: "POST", body: JSON.stringify(payload) }),
+  deleteNotificationSubscription: (subscriptionId: number | string) => apiRequest<void>(`/api/users/notification-subscriptions/${subscriptionId}`, { method: "DELETE" }),
+
+  updateUser: (id: number, payload: { fullName: string; password?: string; profileImageURL?: string }) => apiRequest(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  getUser: (id: number | string) => apiRequest<UserProfile>(`/api/users/${id}`),
+  getUsers: () => apiRequest<UserProfile[]>("/api/users"),
+  getUserByEmail: (email: string) => apiRequest<UserProfile>(`/api/users/by-email?email=${encodeURIComponent(email)}`),
+  verifyUser: (id: number | string) => apiRequest<void>(`/api/users/${id}/verify`, { method: "POST" }),
+  deleteUser: (id: number | string) => apiRequest<void>(`/api/users/${id}`, { method: "DELETE" }),
+  changePassword: (id: number, payload: { currentPassword: string; newPassword: string; confirmNewPassword: string }) => apiRequest(`/api/users/${id}/change-password`, { method: "POST", body: JSON.stringify(payload) }),
+  setupMfa: () => apiRequest<MfaSetupResponse>("/api/users/mfa/setup", { method: "POST" }),
+  enableMfa: (code: string) => apiRequest<void>("/api/users/mfa/enable", { method: "POST", body: JSON.stringify({ code }) }),
+  disableMfa: (code: string) => apiRequest<void>("/api/users/mfa/disable", { method: "POST", body: JSON.stringify({ code }) }),
+
+  createBusiness: (payload: BusinessCreateRequest) => apiRequest<Business>(`/api/businesses`, { method: "POST", body: JSON.stringify(payload) }),
+  getBusiness: (id: number | string) => apiRequest<Business>(`/api/businesses/${id}`),
+  getBusinesses: () => apiRequest<Business[]>("/api/businesses"),
+  deleteBusiness: (id: number | string) => apiRequest<void>(`/api/businesses/${id}`, { method: "DELETE" }),
+  requestBusinessVerification: (payload: BusinessVerificationRequest) => apiRequest(`/api/business-verification`, { method: "POST", body: JSON.stringify(payload) }),
+  getBusinessVerification: (id: number | string) => apiRequest<BusinessVerificationReview>(`/api/business-verification/${id}`),
+  approveBusinessVerification: (id: number | string) => apiRequest<void>(`/api/business-verification/${id}/approve`, { method: "POST" }),
+  rejectBusinessVerification: (id: number | string, reason?: string) => apiRequest<void>(`/api/business-verification/${id}/reject`, { method: "POST", body: JSON.stringify(reason ? { reason } : {}) }),
+
+  reportPromotion: (payload: { promotionId: number; reason: string; details?: string }) => apiRequest(`/api/reports`, { method: "POST", body: JSON.stringify(payload) }),
+  getReport: (id: number | string) => apiRequest<ReportItem>(`/api/reports/${id}`),
+  getReports: () => apiRequest<ReportItem[]>("/api/reports"),
+  resolveReport: (id: number | string, resolution?: string) => apiRequest<void>(`/api/reports/${id}/resolve`, { method: "POST", body: JSON.stringify(resolution ? { resolution } : {}) }),
+
   getPlatformAnalytics: () => apiRequest<PlatformAnalytics>("/api/analytics/platform"),
+  getBusinessAnalytics: (businessId: number | string) => apiRequest<BusinessAnalytics>(`/api/analytics/business/${businessId}`),
+
+  getAdminPromotions: () => apiRequest<Promotion[]>("/api/admin/promotions"),
+  getAdminEvents: () => apiRequest<Event[]>("/api/admin/events"),
+  getAdminBusinesses: () => apiRequest<Business[]>("/api/admin/businesses"),
+  getSecurityAuditLogs: () => apiRequest<SecurityAuditLog[]>("/api/admin/security-audit-logs"),
 };

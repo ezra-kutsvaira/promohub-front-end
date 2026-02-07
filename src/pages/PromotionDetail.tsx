@@ -119,7 +119,8 @@ const PromotionDetail = () => {
   const handleRedeem = async () => {
     try {
       await api.trackPromotionClick(promotion.id);
-      toast.success("We logged your interest. Redeem this deal in-store with the promo code.");
+      await api.trackPromotionRedeem(promotion.id);
+      toast.success("Great! We logged your click and redemption intent for this promotion.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to log engagement.";
       toast.error(message);
