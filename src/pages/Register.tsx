@@ -75,20 +75,22 @@ const Register = () => {
             <Shield className="h-6 w-6 text-primary" />
           </div>
           <h1 className="mt-4 text-3xl md:text-4xl font-bold text-foreground">
-            Get Your Business Verified
+            Create Your PromoHub Account
           </h1>
           <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
-            Share your business details once and we will review your documentation to unlock
-            verified promotions across Zimbabwe.
+            Business owners submit verification details to publish promotions. Customers only need
+            an account to browse, save deals, and log in.
           </p>
         </section>
 
         <section className="grid gap-8 lg:grid-cols-[2fr,1fr]">
           <Card className="border-border shadow-sm">
             <CardHeader>
-              <CardTitle>Verification request</CardTitle>
+              <CardTitle>{role === "BUSINESS_OWNER" ? "Verification request" : "Account registration"}</CardTitle>
               <CardDescription>
-                Complete the form below so our team can confirm your business legitimacy.
+                {role === "BUSINESS_OWNER"
+                  ? "Complete the form below so our team can confirm your business legitimacy."
+                  : "Create your account to browse and save promotions instantly."}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -230,7 +232,7 @@ const Register = () => {
                   </>
                 )}
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit verification request"}
+                  {isSubmitting ? "Submitting..." : role === "BUSINESS_OWNER" ? "Submit verification request" : "Create account"}
                 </Button>
               </form>
             </CardContent>

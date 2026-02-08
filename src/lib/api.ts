@@ -409,9 +409,14 @@ export const api = {
   getBusiness: (id: number | string) => apiRequest<Business>(`/api/businesses/${id}`),
   getBusinesses: () => apiRequest<Business[]>("/api/businesses"),
   deleteBusiness: (id: number | string) => apiRequest<void>(`/api/businesses/${id}`, { method: "DELETE" }),
-  requestBusinessVerification: (payload: BusinessVerificationRequest) => apiRequestWithFallback(
-    `/api/business-verification`,
-    `/api/business-verifications`,
+  requestBusinessVerification: (payload: BusinessVerificationRequest) => apiRequestWithAlternatives(
+    [
+      "/api/business-verification",
+      "/api/business-verifications",
+      `/api/businesses/${payload.businessId}/verification`,
+      `/api/businesses/${payload.businessId}/verify`,
+      `/api/businesses/${payload.businessId}/verification-request`,
+    ],
     { method: "POST", body: JSON.stringify(payload) }
   ),
   getBusinessVerification: (id: number | string) => apiRequestWithFallback<BusinessVerificationReview>(

@@ -66,7 +66,9 @@ const App = () => {
               path="/operations-console"
               element={
                 <RequireAuth>
-                  <OperationsConsole />
+                  <RequireRole allowed={["ADMIN"]}>
+                    <OperationsConsole />
+                  </RequireRole>
                 </RequireAuth>
               }
             />
