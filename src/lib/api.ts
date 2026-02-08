@@ -90,6 +90,33 @@ const apiRequestWithFallback = async <T>(
   }
 };
 
+const apiRequestWithAlternatives = async <T>(paths: string[], options: RequestOptions = {}): Promise<T> => {
+  if (paths.length === 0) {
+    throw new Error("No API paths provided");
+  }
+
+  let lastError: unknown;
+  for (let index = 0; index < paths.length; index += 1) {
+    try {
+      return await apiRequest<T>(paths[index], options);
+    } catch (error) {
+      lastError = error;
+      const isNotFound = error instanceof Error && error.message.toLowerCase() === "not found";
+      const hasMoreCandidates = index < paths.length - 1;
+      if (isNotFound && hasMoreCandidates) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error("Request failed");
+};
+
 export type AuthPayload = {
   accessToken: string;
   refreshToken: string;
@@ -309,8 +336,14 @@ export type SecurityAuditLog = {
 };
 
 export const api = {
-  login: (payload: LoginRequest) => apiRequest<AuthPayload>("/api/auth/login", { method: "POST", body: JSON.stringify(payload), skipAuth: true }),
-  register: (payload: RegisterRequest) => apiRequest<AuthPayload>("/api/auth/register", { method: "POST", body: JSON.stringify(payload), skipAuth: true }),
+  login: (payload: LoginRequest) => apiRequestWithAlternatives<AuthPayload>(
+    ["/api/auth/login", "/api/auth/signin", "/api/auth/sign-in", "/auth/login", "/auth/signin"],
+    { method: "POST", body: JSON.stringify(payload), skipAuth: true }
+  ),
+  register: (payload: RegisterRequest) => apiRequestWithAlternatives<AuthPayload>(
+    ["/api/auth/register", "/api/auth/signup", "/api/users/register", "/auth/register", "/auth/signup"],
+    { method: "POST", body: JSON.stringify(payload), skipAuth: true }
+  ),
   logout: (refreshToken: string) => apiRequest<void>("/api/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
   requestPasswordReset: (email: string) => apiRequest<void>("/api/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email }), skipAuth: true }),
   confirmPasswordReset: (payload: { token: string; newPassword: string; confirmNewPassword: string }) => apiRequest<void>("/api/auth/password-reset/confirm", { method: "POST", body: JSON.stringify(payload), skipAuth: true }),
