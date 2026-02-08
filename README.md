@@ -36,6 +36,46 @@ npm i
 npm run dev
 ```
 
+## Connect the frontend to your backend
+
+Create a `.env` file in the project root (you can copy from `.env.example`) and configure it to match your backend.
+
+For your provided Docker setup, backend app is exposed on `localhost:8080`, so use:
+
+```env
+VITE_DEV_PORT=5173
+VITE_API_BASE_URL=http://localhost:8080
+VITE_API_PROXY_TARGET=http://localhost:8080
+```
+
+Why these values:
+- Frontend runs on `5173` to avoid port conflict with backend `8080`.
+- Backend API calls target `http://localhost:8080`.
+
+You can also configure only one connection strategy:
+
+1. **Direct API base URL** (best for deployed environments):
+
+```env
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+2. **Local dev proxy** (avoids browser CORS issues in development):
+
+```env
+VITE_API_PROXY_TARGET=http://localhost:8080
+```
+
+Then restart the Vite dev server:
+
+```sh
+npm run dev
+```
+
+> Notes:
+> - All frontend API calls use the `/api/...` route prefix.
+> - If both values are set, requests still resolve to your backend at `localhost:8080`.
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).
