@@ -28,6 +28,24 @@ type RequestOptions = RequestInit & {
   skipRefresh?: boolean;
 };
 
+class ApiError extends Error{
+  status:number;
+
+  constructor(message: string , status: number){
+      super(message);
+      this.message = message;
+      this.status = status;
+  }
+}
+
+const isNotFoundError = (error: unknown) => {
+  if (error instanceof ApiError) return error.status === 404;
+  if (!(error instanceof Error)) return false;
+  const normalizedMessage = error.message.toLowerCase();
+  return normalizedMessage === "not found" || normalizedMessage.includes("404");
+};
+
+
 const parseJson = async (response: Response) => {
   const text = await response.text();
   if (!text) return null;
@@ -69,7 +87,7 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
 
   const payload = (await parseJson(response)) as ApiResponse<T> | null;
 
-  if (!response.ok || !payload) throw new Error(payload?.message ?? response.statusText);
+  if (!response.ok || !payload) throw new ApiError(payload?.message ?? response.statusText, response.status);
   if (!payload.success) throw new Error(payload.message ?? "Request failed");
 
   return payload.data;
@@ -83,7 +101,7 @@ const apiRequestWithFallback = async <T>(
   try {
     return await apiRequest<T>(primaryPath, options);
   } catch (error) {
-    if (error instanceof Error && error.message.toLowerCase() === "not found") {
+    if (isNotFoundError(error)) {
       return apiRequest<T>(fallbackPath, options);
     }
     throw error;
@@ -101,7 +119,7 @@ const apiRequestWithAlternatives = async <T>(paths: string[], options: RequestOp
       return await apiRequest<T>(paths[index], options);
     } catch (error) {
       lastError = error;
-      const isNotFound = error instanceof Error && error.message.toLowerCase() === "not found";
+       const isNotFound = isNotFoundError(error);
       const hasMoreCandidates = index < paths.length - 1;
       if (isNotFound && hasMoreCandidates) {
         continue;
