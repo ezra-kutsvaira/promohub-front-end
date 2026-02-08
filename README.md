@@ -76,12 +76,6 @@ npm run dev
 > - All frontend API calls use the `/api/...` route prefix.
 > - If both values are set, requests still resolve to your backend at `localhost:8080`.
 
-### Troubleshooting: `Not Found` on register/login
-
-If you get a `Not Found` toast when submitting auth forms, it usually means your backend uses a different auth route naming convention.
-
-The frontend now attempts common alternatives automatically (for example `.../register` and `.../signup`, `.../login` and `.../signin`). If it still fails, verify your backend route mappings and align `VITE_API_BASE_URL` to the API host.
-
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).
