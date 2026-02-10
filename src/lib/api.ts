@@ -108,7 +108,11 @@ const apiRequestWithFallback = async <T>(
   }
 };
 
-const apiRequestWithAlternatives = async <T>(paths: string[], options: RequestOptions = {}): Promise<T> => {
+const apiRequestWithAlternatives = async <T>(
+  paths: string[],
+  options: RequestOptions = {},
+  retryStatuses: number[] = [404]
+): Promise<T> => {
   if (paths.length === 0) {
     throw new Error("No API paths provided");
   }
@@ -119,9 +123,9 @@ const apiRequestWithAlternatives = async <T>(paths: string[], options: RequestOp
       return await apiRequest<T>(paths[index], options);
     } catch (error) {
       lastError = error;
-       const isNotFound = isNotFoundError(error);
+      const shouldRetryForStatus = error instanceof ApiError && retryStatuses.includes(error.status);
       const hasMoreCandidates = index < paths.length - 1;
-      if (isNotFound && hasMoreCandidates) {
+      if (shouldRetryForStatus && hasMoreCandidates) {
         continue;
       }
       throw error;
@@ -378,7 +382,8 @@ export const api = {
       "/api/business-owner/promotions",
       `/api/businesses/${payload.businessId}/promotions`,
     ],
-    { method: "POST", body: JSON.stringify(payload) }
+    { method: "POST", body: JSON.stringify(payload) },
+    [403, 404]
   ),
   updatePromotion: (id: string | number, payload: PromotionUpsertRequest) => apiRequest<Promotion>(`/api/promotions/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   deletePromotion: (id: string | number) => apiRequest<void>(`/api/promotions/${id}`, { method: "DELETE" }),
