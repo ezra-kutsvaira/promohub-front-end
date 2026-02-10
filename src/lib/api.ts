@@ -371,7 +371,15 @@ export const api = {
     return apiRequest<PageResponse<Promotion>>(`/api/promotions${query}`, { skipAuth: true });
   },
   getPromotion: (id: string | number) => apiRequest<Promotion>(`/api/promotions/${id}`, { skipAuth: true }),
-  createPromotion: (payload: PromotionUpsertRequest) => apiRequest<Promotion>("/api/promotions", { method: "POST", body: JSON.stringify(payload) }),
+  createPromotion: (payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(
+    [
+      "/api/promotions",
+      "/api/business/promotions",
+      "/api/business-owner/promotions",
+      `/api/businesses/${payload.businessId}/promotions`,
+    ],
+    { method: "POST", body: JSON.stringify(payload) }
+  ),
   updatePromotion: (id: string | number, payload: PromotionUpsertRequest) => apiRequest<Promotion>(`/api/promotions/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   deletePromotion: (id: string | number) => apiRequest<void>(`/api/promotions/${id}`, { method: "DELETE" }),
   getPromotionEngagement: (id: string | number) => apiRequest<PromotionEngagement>(`/api/promotions/${id}/engagement`),
@@ -408,6 +416,20 @@ export const api = {
   createBusiness: (payload: BusinessCreateRequest) => apiRequest<Business>(`/api/businesses`, { method: "POST", body: JSON.stringify(payload) }),
   getBusiness: (id: number | string) => apiRequest<Business>(`/api/businesses/${id}`),
   getBusinesses: () => apiRequest<PageResponse<Business> | Business[]>("/api/businesses"),
+  getCurrentUserBusiness: (ownerId?: number | string) => {
+    const ownerScopedPaths = ownerId === undefined
+      ? []
+      : [`/api/businesses/owner/${ownerId}`, `/api/owners/${ownerId}/business`];
+
+    return apiRequestWithAlternatives<Business>(
+      [
+        "/api/businesses/me",
+        "/api/businesses/my",
+        "/api/businesses/current",
+        ...ownerScopedPaths,
+      ]
+    );
+  },
   deleteBusiness: (id: number | string) => apiRequest<void>(`/api/businesses/${id}`, { method: "DELETE" }),
   requestBusinessVerification: (payload: BusinessVerificationRequest) => apiRequestWithAlternatives(
     [
