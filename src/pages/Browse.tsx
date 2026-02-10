@@ -5,12 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { api, type Promotion } from "@/lib/api";
 import { formatDate, formatDiscount } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
 import { landingPromotions } from "@/data/landing";
 
 const Browse = () => {
+  const location = useLocation();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -21,11 +23,18 @@ const Browse = () => {
       try {
         const response = await api.getPromotions();
         const content = Array.isArray(response) ? response : response.content;
+        const createdPromotion = (location.state as {createdPromotion?: Promotion } | null)?.createdPromotion;
+
         if (isMounted) {
-          setPromotions(content.length > 0 ? content : landingPromotions);
+          const baseList = content.length > 0 ? content : landingPromotions;
+          if(createdPromotion && !baseList.some((item) => item.id === createdPromotion.id)) {
+            setPromotions([createdPromotion, ...baseList]);
+          } else {
+            setPromotions(baseList);
+          }
         }
       } catch (error) {
-        if(isMounted){
+        if(isMounted) {
           setPromotions(landingPromotions);
         }
         const message = error instanceof Error ? error.message : "Unable to load promotions.";
@@ -42,7 +51,7 @@ const Browse = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [location.state]);
 
   const filteredPromotions = useMemo(() => {
     if (!search) {

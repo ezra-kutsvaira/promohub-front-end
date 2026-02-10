@@ -167,7 +167,7 @@ const Dashboard = () => {
                       Publish a verified deal and notify your audience instantly.
                     </p>
                   </div>
-                  <Button className="ml-auto" asChild><Link to="/operations-console">Create promo</Link></Button>
+                  <Button className="ml-auto" asChild><Link to="/promotions/new">Create promo</Link></Button>
                 </div>
               )}
             </CardContent>
