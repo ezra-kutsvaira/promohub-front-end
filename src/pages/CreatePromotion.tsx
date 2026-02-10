@@ -31,18 +31,28 @@ const CreatePromotion = () => {
     try {
       setIsSubmitting(true);
       const formData = new FormData(event.currentTarget);
-      const businessesResponse = await api.getBusinesses();
-      const businesses = Array.isArray(businessesResponse)
-        ? businessesResponse
-        : (businessesResponse as BusinessesResponse)?.content ?? [];
+      let business: Business | undefined;
 
-      if (!Array.isArray(businesses)) {
-        console.error("Expected businesses array, got:", businessesResponse);
-        toast.error("Unable to load business profile. Please try again.");
-        return;
+      try {
+        business = await api.getCurrentUserBusiness(user.id);
+      } catch (currentBusinessError) {
+        console.warn("Unable to load current business via dedicated endpoint, falling back to businesses list.", currentBusinessError);
       }
 
-      const business = businesses.find((item) => item.ownerId === user.id);
+      if (!business) {
+        const businessesResponse = await api.getBusinesses();
+        const businesses = Array.isArray(businessesResponse)
+          ? businessesResponse
+          : (businessesResponse as BusinessesResponse)?.content ?? [];
+
+        if (!Array.isArray(businesses)) {
+          console.error("Expected businesses array, got:", businessesResponse);
+          toast.error("Unable to load business profile. Please try again.");
+          return;
+        }
+
+        business = businesses.find((item) => item.ownerId === user.id);
+      }
 
       if (!business) {
         toast.error("No business profile found for your account. Please complete business registration first.");
