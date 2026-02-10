@@ -7,6 +7,11 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import type { Business } from "@/lib/api";
+
+type BusinessesResponse = {
+  content?: Business[];
+};
 
 const CreatePromotion = () => {
   const navigate = useNavigate();
@@ -26,7 +31,17 @@ const CreatePromotion = () => {
     try {
       setIsSubmitting(true);
       const formData = new FormData(event.currentTarget);
-      const businesses = await api.getBusinesses();
+      const businessesResponse = await api.getBusinesses();
+      const businesses = Array.isArray(businessesResponse)
+        ? businessesResponse
+        : (businessesResponse as BusinessesResponse)?.content ?? [];
+
+      if (!Array.isArray(businesses)) {
+        console.error("Expected businesses array, got:", businessesResponse);
+        toast.error("Unable to load business profile. Please try again.");
+        return;
+      }
+
       const business = businesses.find((item) => item.ownerId === user.id);
 
       if (!business) {
@@ -36,14 +51,14 @@ const CreatePromotion = () => {
 
       const promotion = await api.createPromotion({
         businessId: business.id,
-        categoryId: Number(formData.get("categoryId") ?? 1),
+        categoryId: 1,
         title: String(formData.get("title") ?? ""),
         description: String(formData.get("description") ?? ""),
         imageUrl: String(formData.get("imageUrl") ?? ""),
         startDate: String(formData.get("startDate") ?? ""),
         endDate: String(formData.get("endDate") ?? ""),
         promoCode: String(formData.get("promoCode") ?? ""),
-        discountType: String(formData.get("discountType") ?? "PERCENT"),
+        discountType: String(formData.get("discountType") ?? "PERCENTAGE"),
         discountValue: Number(formData.get("discountValue") ?? 0),
         termsAndConditions: String(formData.get("termsAndConditions") ?? ""),
         location: String(formData.get("location") ?? ""),
@@ -105,12 +120,11 @@ const CreatePromotion = () => {
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <select name="discountType" className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="PERCENT">Percent</option>
+                  <option value="PERCENTAGE">Percent</option>
                   <option value="AMOUNT">Amount</option>
                 </select>
                 <Input name="discountValue" type="number" min="0" step="0.01" placeholder="Discount value" required />
               </div>
-              <Input name="categoryId" type="number" min="1" defaultValue="1" required />
               <Input name="imageUrl" placeholder="Image URL (optional)" />
               <Input name="termsAndConditions" placeholder="Terms and conditions" required />
               <div className="flex gap-3">

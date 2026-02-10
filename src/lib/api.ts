@@ -407,7 +407,7 @@ export const api = {
 
   createBusiness: (payload: BusinessCreateRequest) => apiRequest<Business>(`/api/businesses`, { method: "POST", body: JSON.stringify(payload) }),
   getBusiness: (id: number | string) => apiRequest<Business>(`/api/businesses/${id}`),
-  getBusinesses: () => apiRequest<Business[]>("/api/businesses"),
+  getBusinesses: () => apiRequest<PageResponse<Business> | Business[]>("/api/businesses"),
   deleteBusiness: (id: number | string) => apiRequest<void>(`/api/businesses/${id}`, { method: "DELETE" }),
   requestBusinessVerification: (payload: BusinessVerificationRequest) => apiRequestWithAlternatives(
     [
