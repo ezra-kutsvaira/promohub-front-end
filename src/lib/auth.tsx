@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { api, type AuthPayload, type LoginRequest, type RegisterRequest } from "@/lib/api";
 import { loadSession, saveSession } from "@/lib/session";
 
-export type UserRole = "ADMIN" | "BUSINESS_OWNER" | "CONSUMER" | "CUSTOMER";
+type RawUserRole = "ADMIN" | "BUSINESS_OWNER" | "CONSUMER" | "CUSTOMER";
+export type UserRole = "ADMIN" | "BUSINESS_OWNER" | "CONSUMER";
 
 export type AuthUser = {
   id: number;
@@ -23,11 +24,23 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const normalizeUserRole  = (role: string): UserRole => {
+      if(role == "CUSTOMER"){
+            return "CONSUMER";
+      }
+
+      if ( role === "ADMIN" || role === "BUSINESS_OWNER" || role === "CONSUMER"){
+            return role;
+      }
+
+      return "CONSUMER";
+};
+
 const mapPayloadToUser = (payload: AuthPayload): AuthUser => ({
   id: payload.userId,
   fullName: payload.fullName,
   email: payload.email,
-  role: payload.userRole as UserRole,
+  role: normalizeUserRole(payload.userRole),
   verified: payload.verified,
 });
 
@@ -40,7 +53,7 @@ const loadStoredUser = (): AuthUser | null => {
     id: session.userId,
     fullName: session.fullName,
     email: session.email,
-    role: session.userRole as UserRole,
+    role: normalizeUserRole(session.userRole as RawUserRole),
     verified: session.verified,
   };
 };

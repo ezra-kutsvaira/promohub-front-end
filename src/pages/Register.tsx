@@ -9,10 +9,12 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { api } from "@/lib/api";
 
+type RegisterRole  = Exclude<UserRole, "ADMIN">; 
+
 const Register = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [role, setRole] = useState<UserRole>("BUSINESS_OWNER");
+  const [role, setRole] = useState<RegisterRole>("BUSINESS_OWNER");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -78,8 +80,7 @@ const Register = () => {
             Create Your PromoHub Account
           </h1>
           <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
-            Business owners submit verification details to publish promotions. Customers only need
-            an account to browse, save deals, and log in.
+            Business owners submit verification details to publish promotions. Consumers only need an account to browse, save deals, and log in.
           </p>
         </section>
 
@@ -104,11 +105,11 @@ const Register = () => {
                     name="role"
                     className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                     value={role}
-                    onChange={(event) => setRole(event.target.value as UserRole)}
+                    onChange={(event) => setRole(event.target.value as RegisterRole)}
                   >
                     <option value="BUSINESS_OWNER">Business owner</option>
                     <option value="CONSUMER">Consumer</option>
-                    <option value="CUSTOMER">Customer</option>
+                
                   </select>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
