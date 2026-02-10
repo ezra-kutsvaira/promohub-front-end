@@ -51,6 +51,11 @@ export const Navbar = () => {
                 <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
                   Dashboard
                 </Link>
+                {(user?.role === "BUSINESS_OWNER" || user?.role === "ADMIN") && (
+                  <Link to="/promotions/new" className="text-foreground hover:text-primary transition-colors">
+                    Create Promotion
+                  </Link>
+                )}
                 {user?.role === "ADMIN" && (
                   <Link to="/operations-console" className="text-foreground hover:text-primary transition-colors">
                     Operations
@@ -84,6 +89,11 @@ export const Navbar = () => {
                     <DropdownMenuItem asChild>
                       <Link to="/dashboard">Dashboard</Link>
                     </DropdownMenuItem>
+                    {(user?.role === "BUSINESS_OWNER" || user?.role === "ADMIN") && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/promotions/new">Create promotion</Link>
+                      </DropdownMenuItem>
+                    )}
                     {user?.role !== "BUSINESS_OWNER" && (
                       <DropdownMenuItem asChild>
                         <Link to="/saved-promotions">Saved promotions</Link>
@@ -182,6 +192,15 @@ export const Navbar = () => {
                   >
                     Dashboard
                   </Link>
+                  {(user?.role === "BUSINESS_OWNER" || user?.role === "ADMIN") && (
+                    <Link
+                      to="/promotions/new"
+                      className="text-foreground hover:text-primary transition-colors py-2"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Create Promotion
+                    </Link>
+                  )}
                   {user?.role === "ADMIN" && (
                     <Link
                       to="/operations-console"
@@ -205,6 +224,13 @@ export const Navbar = () => {
                 </Button>
                 {isAuthenticated ? (
                   <>
+                    {(user?.role === "BUSINESS_OWNER" || user?.role === "ADMIN") && (
+                      <Button variant="outline" asChild>
+                        <Link to="/promotions/new" onClick={() => setMobileMenuOpen(false)}>
+                          Create promotion
+                        </Link>
+                      </Button>
+                    )}
                     {user?.role !== "BUSINESS_OWNER" && (
                       <Button variant="outline" asChild>
                         <Link to="/saved-promotions" onClick={() => setMobileMenuOpen(false)}>
