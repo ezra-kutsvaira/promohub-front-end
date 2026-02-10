@@ -16,7 +16,7 @@ import Dashboard from "./pages/Dashboard";
 import SavedPromotions from "./pages/SavedPromotions";
 import AccountSettings from "./pages/AccountSettings";
 import OperationsConsole from "./pages/OperationsConsole";
-import CreatePromotion from "./pages/CreatePromotion"
+import CreatePromotion from "./pages/CreatePromotion";
 import { RequireAuth, RequireRole } from "./components/RouteGuard";
 
 const queryClient = new QueryClient();
@@ -68,8 +68,8 @@ const App = () => {
               path="/promotions/new"
               element={
                 <RequireAuth>
-                  <RequireRole allowed={["BUSINESS_OWNER" , "ADMIN"]}>
-                    <OperationsConsole />
+                  <RequireRole allowed={["BUSINESS_OWNER", "ADMIN"]}>
+                    <CreatePromotion />
                   </RequireRole>
                 </RequireAuth>
               }
