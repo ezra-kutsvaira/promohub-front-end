@@ -51,7 +51,7 @@ export const Navbar = () => {
                 <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
                   Dashboard
                 </Link>
-                {(user?.role === "BUSINESS_OWNER" || user?.role === "ADMIN") && (
+                {user?.role === "BUSINESS_OWNER" && (
                   <Link to="/promotions/new" className="text-foreground hover:text-primary transition-colors">
                     Create Promotion
                   </Link>
@@ -89,7 +89,7 @@ export const Navbar = () => {
                     <DropdownMenuItem asChild>
                       <Link to="/dashboard">Dashboard</Link>
                     </DropdownMenuItem>
-                    {(user?.role === "BUSINESS_OWNER" || user?.role === "ADMIN") && (
+                    {user?.role === "BUSINESS_OWNER" && (
                       <DropdownMenuItem asChild>
                         <Link to="/promotions/new">Create promotion</Link>
                       </DropdownMenuItem>
@@ -192,7 +192,7 @@ export const Navbar = () => {
                   >
                     Dashboard
                   </Link>
-                  {(user?.role === "BUSINESS_OWNER" || user?.role === "ADMIN") && (
+                  {user?.role === "BUSINESS_OWNER" && (
                     <Link
                       to="/promotions/new"
                       className="text-foreground hover:text-primary transition-colors py-2"
@@ -224,7 +224,7 @@ export const Navbar = () => {
                 </Button>
                 {isAuthenticated ? (
                   <>
-                    {(user?.role === "BUSINESS_OWNER" || user?.role === "ADMIN") && (
+                    {user?.role === "BUSINESS_OWNER" && (
                       <Button variant="outline" asChild>
                         <Link to="/promotions/new" onClick={() => setMobileMenuOpen(false)}>
                           Create promotion
