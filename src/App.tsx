@@ -68,7 +68,7 @@ const App = () => {
               path="/promotions/new"
               element={
                 <RequireAuth>
-                  <RequireRole allowed={["BUSINESS_OWNER", "ADMIN"]}>
+                  <RequireRole allowed={["BUSINESS_OWNER"]}>
                     <CreatePromotion />
                   </RequireRole>
                 </RequireAuth>

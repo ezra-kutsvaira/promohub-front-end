@@ -18,7 +18,7 @@ const CreatePromotion = () => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const canCreatePromotion = useMemo(() => user?.role === "BUSINESS_OWNER" || user?.role === "ADMIN", [user?.role]);
+  const canCreatePromotion = useMemo(() => user?.role === "BUSINESS_OWNER", [user?.role]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
