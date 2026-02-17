@@ -16,11 +16,15 @@ export type PageResponse<T> = {
 };
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const API_PROXY_TARGET = (import.meta.env.VITE_API_PROXY_TARGET ?? "").trim();
+const SHOULD_PREFER_DEV_PROXY = import.meta.env.DEV && Boolean(API_PROXY_TARGET)
 
 const buildUrl = (path: string) => {
   if (path.startsWith("http")) return path;
-  if (!API_BASE_URL) return path;
-  return `${API_BASE_URL}${path}`;
+  if(SHOULD_PREFER_DEV_PROXY && path.startsWith("/api")) return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (!API_BASE_URL) return normalizedPath;
+  return `${API_BASE_URL}${normalizedPath}`
 };
 
 type RequestOptions = RequestInit & {
