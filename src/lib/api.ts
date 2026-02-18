@@ -76,7 +76,7 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
   const headers = new Headers(options.headers ?? {});
 
   if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
-  if (!options.skipAuth && session?.accessToken) headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
+  if (!options.skipAuth && session?.accessToken) headers.set("Authorization", `Bearer ${session.accessToken}`);
 
   const response = await fetch(buildUrl(path), { ...options, headers });
 
@@ -361,8 +361,8 @@ export type SecurityAuditLog = {
   createdAt: string;
 };
 
-const PROMOTIONS_BASE_PATHS = ["/api/promotions", "/api/business/promotions"] as const;
-const promotionPathCandidates = (suffix = "") => PROMOTIONS_BASE_PATHS.map((path) => `${path}${suffix}`);
+const PUBLIC_PROMOTIONS_BASE_PATH = "/api/promotions";
+const BUSINESS_PROMOTIONS_BASE_PATH = "/api/business/promotions";
 
 export const api = {
   login: (payload: LoginRequest) => apiRequestWithAlternatives<AuthPayload>(
@@ -379,24 +379,19 @@ export const api = {
 
   getPromotions: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return apiRequestWithAlternatives<PageResponse<Promotion>>(promotionPathCandidates(query), { skipAuth: true }, [404]);
+    return apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`, { skipAuth: true });
   },
-  getPromotion: (id: string | number) => apiRequestWithAlternatives<Promotion>(promotionPathCandidates(`/${id}`), { skipAuth: true }, [404]),
-  createPromotion: (payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(
-    [
-      ...PROMOTIONS_BASE_PATHS,
-      "/api/business-owner/promotions",
-      `/api/businesses/${payload.businessId}/promotions`,
-    ],
-    { method: "POST", body: JSON.stringify(payload) },
-    [403, 404]
+  getPromotion: (id: string | number) => apiRequest<Promotion>(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`, { skipAuth: true }),
+  createPromotion: (payload: PromotionUpsertRequest) => apiRequest<Promotion>(
+    BUSINESS_PROMOTIONS_BASE_PATH,
+    { method: "POST", body: JSON.stringify(payload) }
   ),
-  updatePromotion: (id: string | number, payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(promotionPathCandidates(`/${id}`), { method: "PUT", body: JSON.stringify(payload) }, [404]),
-  deletePromotion: (id: string | number) => apiRequestWithAlternatives<void>(promotionPathCandidates(`/${id}`), { method: "DELETE" }, [404]),
-  getPromotionEngagement: (id: string | number) => apiRequestWithAlternatives<PromotionEngagement>(promotionPathCandidates(`/${id}/engagement`), undefined, [404]),
-  trackPromotionView: (id: string | number) => apiRequestWithAlternatives(promotionPathCandidates(`/${id}/view`), { method: "POST", skipAuth: true }, [404]),
-  trackPromotionClick: (id: string | number) => apiRequestWithAlternatives(promotionPathCandidates(`/${id}/click`), { method: "POST", skipAuth: true }, [404]),
-  trackPromotionRedeem: (id: string | number) => apiRequestWithAlternatives(promotionPathCandidates(`/${id}/redeem`), { method: "POST", skipAuth: true }, [404]),
+  updatePromotion: (id: string | number, payload: PromotionUpsertRequest) => apiRequest<Promotion>(`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deletePromotion: (id: string | number) => apiRequest<void>(`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`, { method: "DELETE" }),
+  getPromotionEngagement: (id: string | number) => apiRequest<PromotionEngagement>(`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}/engagement`),
+  trackPromotionView: (id: string | number) => apiRequest(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}/view`, { method: "POST", skipAuth: true }),
+  trackPromotionClick: (id: string | number) => apiRequest(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}/click`, { method: "POST", skipAuth: true }),
+  trackPromotionRedeem: (id: string | number) => apiRequest(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}/redeem`, { method: "POST", skipAuth: true }),
 
   getEvents: () => apiRequest<PageResponse<Event> | Event[]>("/api/events", { skipAuth: true }),
   getEvent: (id: string | number) => apiRequest<Event>(`/api/events/${id}`, { skipAuth: true }),
