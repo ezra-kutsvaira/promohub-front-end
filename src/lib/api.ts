@@ -377,6 +377,7 @@ export type SecurityAuditLog = {
 
 const PUBLIC_PROMOTIONS_BASE_PATH = "/api/promotions";
 const BUSINESS_PROMOTIONS_BASE_PATH = "/api/business/promotions";
+const BUSINESS_PROMOTIONS_ALIAS_BASE_PATH = "/business/promotions";
 
 export const api = {
   login: (payload: LoginRequest) => apiRequestWithAlternatives<AuthPayload>(
@@ -396,13 +397,26 @@ export const api = {
     return apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`, { skipAuth: true });
   },
   getPromotion: (id: string | number) => apiRequest<Promotion>(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`, { skipAuth: true }),
-  createPromotion: (payload: PromotionUpsertRequest) => apiRequest<Promotion>(
-    BUSINESS_PROMOTIONS_BASE_PATH,
-    { method: "POST", body: JSON.stringify(payload) }
+  createPromotion: (payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(
+    [BUSINESS_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_ALIAS_BASE_PATH],
+    { method: "POST", body: JSON.stringify(payload) },
+    [404]
   ),
-  updatePromotion: (id: string | number, payload: PromotionUpsertRequest) => apiRequest<Promotion>(`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  deletePromotion: (id: string | number) => apiRequest<void>(`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`, { method: "DELETE" }),
-  getPromotionEngagement: (id: string | number) => apiRequest<PromotionEngagement>(`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}/engagement`),
+  updatePromotion: (id: string | number, payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(
+    [`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`, `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}`],
+    { method: "PUT", body: JSON.stringify(payload) },
+    [404]
+  ),
+  deletePromotion: (id: string | number) => apiRequestWithAlternatives<void>(
+    [`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`, `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}`],
+    { method: "DELETE" },
+    [404]
+  ),
+  getPromotionEngagement: (id: string | number) => apiRequestWithAlternatives<PromotionEngagement>(
+    [`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}/engagement`, `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}/engagement`],
+    {},
+    [404]
+  ),
   trackPromotionView: (id: string | number) => apiRequest(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}/view`, { method: "POST", skipAuth: true }),
   trackPromotionClick: (id: string | number) => apiRequest(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}/click`, { method: "POST", skipAuth: true }),
   trackPromotionRedeem: (id: string | number) => apiRequest(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}/redeem`, { method: "POST", skipAuth: true }),
