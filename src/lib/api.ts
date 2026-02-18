@@ -42,6 +42,9 @@ class ApiError extends Error{
   }
 }
 
+const NETWORK_ERROR_MESSAGE =
+  "Unable to reach the API server. Make sure the backend is running and your VITE_API_BASE_URL or VITE_API_PROXY_TARGET is configured correctly.";
+
 const isNotFoundError = (error: unknown) => {
   if (error instanceof ApiError) return error.status === 404;
   if (!(error instanceof Error)) return false;
@@ -60,8 +63,19 @@ const parseJson = async (response: Response) => {
   }
 };
 
+const performRequest = async (input: RequestInfo | URL, init?: RequestInit) => {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(NETWORK_ERROR_MESSAGE);
+    }
+    throw error;
+  }
+};
+
 const refreshSession = async (refreshToken: string): Promise<AuthSession | null> => {
-  const response = await fetch(buildUrl(`/api/auth/refresh?refreshToken=${encodeURIComponent(refreshToken)}`), {
+  const response = await performRequest(buildUrl(`/api/auth/refresh?refreshToken=${encodeURIComponent(refreshToken)}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -78,7 +92,7 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
   if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
   if (!options.skipAuth && session?.accessToken) headers.set("Authorization", `Bearer ${session.accessToken}`);
 
-  const response = await fetch(buildUrl(path), { ...options, headers });
+  const response = await performRequest(buildUrl(path), { ...options, headers });
 
   if (response.status === 401 && session?.refreshToken && !options.skipRefresh) {
     const refreshed = await refreshSession(session.refreshToken);
