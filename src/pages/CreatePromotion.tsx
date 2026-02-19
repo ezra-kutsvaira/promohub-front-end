@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -7,18 +7,36 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { Business } from "@/lib/api";
+import type { Business, Category } from "@/lib/api";
 
 type BusinessesResponse = {
   content?: Business[];
 };
 
+const OTHER_CATEGORY_VALUE = "__other__";
+
 const CreatePromotion = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [customCategoryName, setCustomCategoryName] = useState("");
 
   const canCreatePromotion = useMemo(() => user?.role === "BUSINESS_OWNER", [user?.role]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await api.getCategories();
+        setCategories(response);
+      } catch (error) {
+        console.warn("Unable to load categories", error);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -66,6 +84,23 @@ const CreatePromotion = () => {
       const discountType = String(formData.get("discountType") ?? "").trim();
       const discountValueRaw = String(formData.get("discountValue") ?? "").trim();
       const location = String(formData.get("location") ?? "").trim();
+      const selectedCategoryValue = String(formData.get("category") ?? "").trim();
+      const typedCategoryName = String(formData.get("categoryName") ?? "").trim();
+
+      const isOtherCategory = selectedCategoryValue === OTHER_CATEGORY_VALUE;
+      const parsedCategoryId = selectedCategoryValue && !isOtherCategory ? Number(selectedCategoryValue) : undefined;
+      const categoryId = Number.isFinite(parsedCategoryId) ? parsedCategoryId : undefined;
+      const categoryName = isOtherCategory ? typedCategoryName : undefined;
+
+      if (categoryId && categoryName) {
+        toast.error("Select either a category or a custom category name, not both.");
+        return;
+      }
+
+      if (isOtherCategory && !categoryName) {
+        toast.error("Please provide a custom category name.");
+        return;
+      }
 
       if (endDate < startDate) {
         toast.error("End date cannot be before start date.");
@@ -89,6 +124,8 @@ const CreatePromotion = () => {
 
       const promotion = await api.createPromotion({
         businessId: business.id,
+        categoryId,
+        categoryName,
         title,
         description,
         imageUrl: String(formData.get("imageUrl") ?? "").trim() || undefined,
@@ -154,6 +191,32 @@ const CreatePromotion = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <Input name="promoCode" placeholder="Promo code (optional)" />
                 <Input name="location" placeholder="Location" required />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <select
+                  name="category"
+                  value={selectedCategory}
+                  onChange={(event) => {
+                    setSelectedCategory(event.target.value);
+                    if (event.target.value !== OTHER_CATEGORY_VALUE) {
+                      setCustomCategoryName("");
+                    }
+                  }}
+                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Use business profile category (optional)</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={String(category.id)}>{category.name}</option>
+                  ))}
+                  <option value={OTHER_CATEGORY_VALUE}>Other (type custom category)</option>
+                </select>
+                <Input
+                  name="categoryName"
+                  placeholder="Custom category name"
+                  value={customCategoryName}
+                  disabled={selectedCategory !== OTHER_CATEGORY_VALUE}
+                  onChange={(event) => setCustomCategoryName(event.target.value)}
+                />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <select name="discountType" className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
