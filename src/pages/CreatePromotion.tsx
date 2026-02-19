@@ -222,7 +222,7 @@ const CreatePromotion = () => {
                   className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="PERCENTAGE">Percentage (%)</option>
-                  <option value="FIXED_AMOUNT">Fixed amount</option>
+                  <option value="FIXED">Fixed amount</option>
                 </select>
                 <Input
                   name="discountValue"
