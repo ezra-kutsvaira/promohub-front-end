@@ -79,7 +79,8 @@ const CreatePromotion = () => {
       const description = String(formData.get("description") ?? "").trim();
       const startDate = String(formData.get("startDate") ?? "");
       const endDate = String(formData.get("endDate") ?? "");
-      const discountType = String(formData.get("discountType") ?? selectedDiscountType).trim();
+      const discountTypeValue = String(formData.get("discountType") ?? selectedDiscountType).trim();
+      const discountType = discountTypeValue.toLowerCase() === "fixed" ? "FIXED_AMOUNT" : discountTypeValue;
       const discountValueRaw = String(formData.get("discountValue") ?? "").trim();
       const location = String(formData.get("location") ?? "").trim();
       const selectedCategoryValue = String(formData.get("categoryCode") ?? "").trim();
@@ -220,7 +221,7 @@ const CreatePromotion = () => {
                   className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="PERCENTAGE">Percentage (%)</option>
-                  <option value="fixed">Fixed amount</option>
+                  <option value="FIXED_AMOUNT">Fixed amount</option>
                 </select>
                 <Input
                   name="discountValue"
