@@ -13,15 +13,12 @@ type BusinessesResponse = {
   content?: Business[];
 };
 
-const OTHER_CATEGORY_VALUE = "__other__";
-
 const CreatePromotion = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [customCategoryName, setCustomCategoryName] = useState("");
+  const [selectedCategoryCode, setSelectedCategoryCode] = useState("");
 
   const canCreatePromotion = useMemo(() => user?.role === "BUSINESS_OWNER", [user?.role]);
 
@@ -84,28 +81,20 @@ const CreatePromotion = () => {
       const discountType = String(formData.get("discountType") ?? "").trim();
       const discountValueRaw = String(formData.get("discountValue") ?? "").trim();
       const location = String(formData.get("location") ?? "").trim();
-      const selectedCategoryValue = String(formData.get("category") ?? "").trim();
-      const typedCategoryName = String(formData.get("categoryName") ?? "").trim();
+      const selectedCategoryValue = String(formData.get("categoryCode") ?? "").trim();
 
-      const isOtherCategory = selectedCategoryValue === OTHER_CATEGORY_VALUE;
-      const parsedCategoryId = selectedCategoryValue && !isOtherCategory ? Number(selectedCategoryValue) : undefined;
+      let categoryCode = selectedCategoryValue;
 
-      let categoryId = Number.isFinite(parsedCategoryId) ? parsedCategoryId : undefined;
-
-      if (isOtherCategory) {
-        toast.error("Custom categories are not supported yet. Please choose an existing category.");
-        return;
-      }
-
-      if (!categoryId) {
-        const matchedBusinessCategory = categories.find(
-          (category) => category.name.trim().toLowerCase() === business.category.trim().toLowerCase()
+      if (!categoryCode) {
+        const businessCategoryMatch = categories.find(
+          (category) => category.code === business.categoryCode
+            || category.name.trim().toLowerCase() === business.category.trim().toLowerCase()
         );
-        categoryId = matchedBusinessCategory?.id;
+        categoryCode = businessCategoryMatch?.code ?? "";
       }
 
-      if (!categoryId) {
-        toast.error("Category ID is required. Please select a category before posting your promotion.");
+      if (!categoryCode) {
+        toast.error("Category is required. Please select a category before posting your promotion.");
         return;
       }
 
@@ -131,8 +120,7 @@ const CreatePromotion = () => {
 
       const promotion = await api.createPromotion({
         businessId: business.id,
-        categoryId,
-        categoryName: typedCategoryName || undefined,
+        categoryCode,
         title,
         description,
         imageUrl: String(formData.get("imageUrl") ?? "").trim() || undefined,
@@ -149,7 +137,11 @@ const CreatePromotion = () => {
       navigate("/dashboard", { state: { createdPromotion: promotion } });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to create promotion.";
-      toast.error(message);
+      if (message.includes("Provide only one of categoryId, categoryCode, or categoryName")) {
+        toast.error("Please choose exactly one category source before submitting.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -201,28 +193,22 @@ const CreatePromotion = () => {
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <select
-                  name="category"
-                  value={selectedCategory}
-                  onChange={(event) => {
-                    setSelectedCategory(event.target.value);
-                    if (event.target.value !== OTHER_CATEGORY_VALUE) {
-                      setCustomCategoryName("");
-                    }
-                  }}
+                  name="categoryCode"
+                  value={selectedCategoryCode}
+                  onChange={(event) => setSelectedCategoryCode(event.target.value)}
                   className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  required
                 >
                   <option value="">Select a category</option>
                   {categories.map((category) => (
-                    <option key={category.id} value={String(category.id)}>{category.name}</option>
+                    <option key={category.code} value={category.code}>{category.name}</option>
                   ))}
-                  <option value={OTHER_CATEGORY_VALUE}>Other (type custom category)</option>
                 </select>
                 <Input
-                  name="categoryName"
-                  placeholder="Custom category name"
-                  value={customCategoryName}
-                  disabled={selectedCategory !== OTHER_CATEGORY_VALUE}
-                  onChange={(event) => setCustomCategoryName(event.target.value)}
+                  value={categories.find((category) => category.code === selectedCategoryCode)?.description ?? ""}
+                  placeholder="Category description"
+                  disabled
+                  readOnly
                 />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
