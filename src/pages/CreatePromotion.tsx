@@ -19,6 +19,7 @@ const CreatePromotion = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryCode, setSelectedCategoryCode] = useState("");
+  const [selectedDiscountType, setSelectedDiscountType] = useState("PERCENTAGE");
 
   const canCreatePromotion = useMemo(() => user?.role === "BUSINESS_OWNER", [user?.role]);
 
@@ -78,7 +79,7 @@ const CreatePromotion = () => {
       const description = String(formData.get("description") ?? "").trim();
       const startDate = String(formData.get("startDate") ?? "");
       const endDate = String(formData.get("endDate") ?? "");
-      const discountType = String(formData.get("discountType") ?? "").trim();
+      const discountType = String(formData.get("discountType") ?? selectedDiscountType).trim();
       const discountValueRaw = String(formData.get("discountValue") ?? "").trim();
       const location = String(formData.get("location") ?? "").trim();
       const selectedCategoryValue = String(formData.get("categoryCode") ?? "").trim();
@@ -212,11 +213,23 @@ const CreatePromotion = () => {
                 />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <select name="discountType" className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="PERCENTAGE">Percent</option>
-                  <option value="FIXED_AMOUNT">Fixed amount</option>
+                <select
+                  name="discountType"
+                  value={selectedDiscountType}
+                  onChange={(event) => setSelectedDiscountType(event.target.value)}
+                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="PERCENTAGE">Percentage (%)</option>
+                  <option value="fixed">Fixed amount</option>
                 </select>
-                <Input name="discountValue" type="number" min="0.01" step="0.01" placeholder="Discount value" required />
+                <Input
+                  name="discountValue"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder={selectedDiscountType === "PERCENTAGE" ? "Discount % value" : "Discount amount"}
+                  required
+                />
               </div>
               <Input name="imageUrl" placeholder="Image URL (optional)" />
               <Input name="termsAndConditions" placeholder="Terms and conditions (optional)" />
