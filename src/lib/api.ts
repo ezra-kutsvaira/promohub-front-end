@@ -266,6 +266,7 @@ export type Promotion = {
 export type PromotionUpsertRequest = {
   businessId: number;
   categoryId?: number;
+  categoryName?: string;
   title: string;
   description: string;
   imageUrl?: string;
