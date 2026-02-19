@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { normalizeDiscountTypeForApi } from "@/lib/discountType";
 import type { Business, Category } from "@/lib/api";
 
 type BusinessesResponse = {
@@ -79,8 +80,8 @@ const CreatePromotion = () => {
       const description = String(formData.get("description") ?? "").trim();
       const startDate = String(formData.get("startDate") ?? "");
       const endDate = String(formData.get("endDate") ?? "");
-      const discountTypeValue = String(formData.get("discountType") ?? selectedDiscountType).trim();
-      const discountType = discountTypeValue.toLowerCase() === "fixed" ? "FIXED_AMOUNT" : discountTypeValue;
+      const discountTypeValue = String(formData.get("discountType") ?? selectedDiscountType);
+      const discountType = normalizeDiscountTypeForApi(discountTypeValue);
       const discountValueRaw = String(formData.get("discountValue") ?? "").trim();
       const location = String(formData.get("location") ?? "").trim();
       const selectedCategoryValue = String(formData.get("categoryCode") ?? "").trim();
