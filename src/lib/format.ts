@@ -1,3 +1,17 @@
+const normalizeDiscountType = (type?: string) => {
+  if (!type) {
+    return "";
+  }
+
+  const normalized = type.trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+  if (normalized === "fixed" || normalized === "fixed_amount" || normalized === "flat" || normalized === "flat_amount") {
+    return "fixed_amount";
+  }
+
+  return normalized;
+};
+
 export const formatDate = (dateString?: string) => {
   if (!dateString) {
     return "";
@@ -20,11 +34,11 @@ export const formatDiscount = (type?: string, value?: number) => {
   if (!type) {
     return `${value}`;
   }
-  const normalized = type.toLowerCase();
+  const normalized = normalizeDiscountType(type);
   if (normalized.includes("percent")) {
     return `${value}% OFF`;
   }
-  if (normalized.includes("amount") || normalized.includes("flat")) {
+  if (normalized.includes("amount") || normalized.includes("flat") || normalized.includes("fixed")) {
     return `${value} OFF`;
   }
   if (normalized.includes("free")) {
