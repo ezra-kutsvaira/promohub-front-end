@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { Business } from "@/lib/api";
+import type { Business, Category } from "@/lib/api";
 
 type BusinessesResponse = {
   content?: Business[];
@@ -17,8 +18,37 @@ const CreatePromotion = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
 
   const canCreatePromotion = useMemo(() => user?.role === "BUSINESS_OWNER", [user?.role]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCategories = async () => {
+      if (!canCreatePromotion) return;
+      try {
+        setIsLoadingCategories(true);
+        const response = await api.getCategories();
+        if (!mounted) return;
+        setCategories(response);
+      } catch {
+        if (!mounted) return;
+        toast.error("Unable to load promotion categories right now.");
+      } finally {
+        if (mounted) {
+          setIsLoadingCategories(false);
+        }
+      }
+    };
+
+    loadCategories();
+
+    return () => {
+      mounted = false;
+    };
+  }, [canCreatePromotion]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -59,23 +89,46 @@ const CreatePromotion = () => {
         return;
       }
 
+      const selectedCategoryId = Number(formData.get("categoryId") ?? 0);
+      const title = String(formData.get("title") ?? "").trim();
+      const description = String(formData.get("description") ?? "").trim();
+      const startDate = String(formData.get("startDate") ?? "");
+      const endDate = String(formData.get("endDate") ?? "");
+      const discountType = String(formData.get("discountType") ?? "").trim();
+      const discountValueRaw = String(formData.get("discountValue") ?? "").trim();
+
+      if (!selectedCategoryId) {
+        toast.error("Please select a promotion category.");
+        return;
+      }
+
+      if (endDate < startDate) {
+        toast.error("End date cannot be before start date.");
+        return;
+      }
+
+      if (discountValueRaw && Number(discountValueRaw) <= 0) {
+        toast.error("Discount value must be a positive number.");
+        return;
+      }
+
       const promotion = await api.createPromotion({
         businessId: business.id,
-        categoryId: 1,
-        title: String(formData.get("title") ?? ""),
-        description: String(formData.get("description") ?? ""),
-        imageUrl: String(formData.get("imageUrl") ?? ""),
-        startDate: String(formData.get("startDate") ?? ""),
-        endDate: String(formData.get("endDate") ?? ""),
-        promoCode: String(formData.get("promoCode") ?? ""),
-        discountType: String(formData.get("discountType") ?? "PERCENTAGE"),
-        discountValue: Number(formData.get("discountValue") ?? 0),
-        termsAndConditions: String(formData.get("termsAndConditions") ?? ""),
-        location: String(formData.get("location") ?? ""),
+        categoryId: selectedCategoryId,
+        title,
+        description,
+        imageUrl: String(formData.get("imageUrl") ?? "").trim() || undefined,
+        startDate,
+        endDate,
+        promoCode: String(formData.get("promoCode") ?? "").trim() || undefined,
+        discountType: discountType || undefined,
+        discountValue: discountValueRaw ? Number(discountValueRaw) : undefined,
+        termsAndConditions: String(formData.get("termsAndConditions") ?? "").trim() || undefined,
+        location: String(formData.get("location") ?? "").trim() || undefined,
       });
 
-      toast.success("Promotion created successfully.");
-      navigate("/browse", { state: { createdPromotion: promotion } });
+      toast.success("Promotion submitted and is awaiting admin approval.");
+      navigate("/dashboard", { state: { createdPromotion: promotion } });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to create promotion.";
       toast.error(message);
@@ -118,6 +171,22 @@ const CreatePromotion = () => {
           </CardHeader>
           <CardContent>
             <form className="grid gap-4" onSubmit={handleSubmit}>
+              <div className="grid gap-2">
+                <Label htmlFor="categoryId">Category</Label>
+                <select
+                  id="categoryId"
+                  name="categoryId"
+                  required
+                  disabled={isLoadingCategories}
+                  className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Select a category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </div>
               <Input name="title" placeholder="Promotion title" required />
               <Input name="description" placeholder="Short description" required />
               <div className="grid gap-4 md:grid-cols-2">
@@ -125,18 +194,18 @@ const CreatePromotion = () => {
                 <Input name="endDate" type="date" defaultValue={today} required />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <Input name="promoCode" placeholder="Promo code" required />
-                <Input name="location" placeholder="Location" required />
+                <Input name="promoCode" placeholder="Promo code (optional)" />
+                <Input name="location" placeholder="Location (optional)" />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <select name="discountType" className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
                   <option value="PERCENTAGE">Percent</option>
-                  <option value="AMOUNT">Amount</option>
+                  <option value="FIXED_AMOUNT">Fixed amount</option>
                 </select>
-                <Input name="discountValue" type="number" min="0" step="0.01" placeholder="Discount value" required />
+                <Input name="discountValue" type="number" min="0.01" step="0.01" placeholder="Discount value (optional)" />
               </div>
               <Input name="imageUrl" placeholder="Image URL (optional)" />
-              <Input name="termsAndConditions" placeholder="Terms and conditions" required />
+              <Input name="termsAndConditions" placeholder="Terms and conditions (optional)" />
               <div className="flex gap-3">
                 <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create promotion"}</Button>
                 <Button type="button" variant="outline" asChild>

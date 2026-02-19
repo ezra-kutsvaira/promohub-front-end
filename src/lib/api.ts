@@ -252,7 +252,13 @@ export type Promotion = {
   termsAndConditions: string;
   location: string;
   status: string;
+  verifiedAt?: string;
+  verifiedById?: number;
+  verifiedByEmail?: string;
+  verificationNotes?: string;
+  rejectionReason?: string;
   flagged: boolean;
+  riskScore?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -265,11 +271,17 @@ export type PromotionUpsertRequest = {
   imageUrl?: string;
   startDate: string;
   endDate: string;
-  promoCode: string;
-  discountType: string;
-  discountValue: number;
-  termsAndConditions: string;
-  location: string;
+  promoCode?: string;
+  discountType?: string;
+  discountValue?: number;
+  termsAndConditions?: string;
+  location?: string;
+};
+
+export type Category = {
+  id: number;
+  name: string;
+  description?: string;
 };
 
 export type PromotionEngagement = {
@@ -398,7 +410,7 @@ export const api = {
   },
   getPromotion: (id: string | number) => apiRequest<Promotion>(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`, { skipAuth: true }),
   createPromotion: (payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(
-    [BUSINESS_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_ALIAS_BASE_PATH],
+    [PUBLIC_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_ALIAS_BASE_PATH],
     { method: "POST", body: JSON.stringify(payload) },
     [404]
   ),
@@ -450,6 +462,7 @@ export const api = {
   createBusiness: (payload: BusinessCreateRequest) => apiRequest<Business>(`/api/businesses`, { method: "POST", body: JSON.stringify(payload) }),
   getBusiness: (id: number | string) => apiRequest<Business>(`/api/businesses/${id}`),
   getBusinesses: () => apiRequest<PageResponse<Business> | Business[]>("/api/businesses"),
+  getCategories: () => apiRequest<Category[]>("/api/categories", { skipAuth: true }),
   getCurrentUserBusiness: (ownerId?: number | string) => {
     const ownerScopedPaths = ownerId === undefined
       ? []
