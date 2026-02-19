@@ -89,16 +89,23 @@ const CreatePromotion = () => {
 
       const isOtherCategory = selectedCategoryValue === OTHER_CATEGORY_VALUE;
       const parsedCategoryId = selectedCategoryValue && !isOtherCategory ? Number(selectedCategoryValue) : undefined;
-      const categoryId = Number.isFinite(parsedCategoryId) ? parsedCategoryId : undefined;
-      const categoryName = isOtherCategory ? typedCategoryName : undefined;
 
-      if (categoryId && categoryName) {
-        toast.error("Select either a category or a custom category name, not both.");
+      let categoryId = Number.isFinite(parsedCategoryId) ? parsedCategoryId : undefined;
+
+      if (isOtherCategory) {
+        toast.error("Custom categories are not supported yet. Please choose an existing category.");
         return;
       }
 
-      if (isOtherCategory && !categoryName) {
-        toast.error("Please provide a custom category name.");
+      if (!categoryId) {
+        const matchedBusinessCategory = categories.find(
+          (category) => category.name.trim().toLowerCase() === business.category.trim().toLowerCase()
+        );
+        categoryId = matchedBusinessCategory?.id;
+      }
+
+      if (!categoryId) {
+        toast.error("Category ID is required. Please select a category before posting your promotion.");
         return;
       }
 
@@ -125,7 +132,7 @@ const CreatePromotion = () => {
       const promotion = await api.createPromotion({
         businessId: business.id,
         categoryId,
-        categoryName,
+        categoryName: typedCategoryName || undefined,
         title,
         description,
         imageUrl: String(formData.get("imageUrl") ?? "").trim() || undefined,
@@ -204,7 +211,7 @@ const CreatePromotion = () => {
                   }}
                   className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  <option value="">Use business profile category (optional)</option>
+                  <option value="">Select a category</option>
                   {categories.map((category) => (
                     <option key={category.id} value={String(category.id)}>{category.name}</option>
                   ))}
