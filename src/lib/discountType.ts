@@ -10,8 +10,17 @@ export const normalizeDiscountTypeForApi = (value?: string): string => {
     .replace(/^_+|_+$/g, "")
     .toUpperCase();
 
-  if (normalized === "FIXED") {
-    return "FIXED_AMOUNT";
+  if (
+    normalized === "FIXED"
+    || normalized === "FIXED_AMOUNT"
+    || normalized === "FLAT"
+    || normalized === "FLAT_AMOUNT"
+  ) {
+    return "FIXED";
+  }
+
+  if (normalized === "PERCENT" || normalized === "PERCENTAGE") {
+    return "PERCENTAGE";
   }
 
   return normalized;
