@@ -188,6 +188,7 @@ export type BusinessCreateRequest = {
   contactEmail: string;
   phoneNumber: string;
   category: string;
+  categoryCode?: string;
   websiteUrl?: string;
   address: string;
   logoUrl: string;
@@ -204,6 +205,8 @@ export type Business = {
   contactEmail: string;
   phoneNumber: string;
   category: string;
+  categoryId?: number;
+  categoryCode?: string;
   websiteUrl: string;
   address: string;
   city: string;
@@ -240,6 +243,7 @@ export type Promotion = {
   businessId: number;
   businessName: string;
   categoryId?: number;
+  categoryCode?: string;
   categoryName: string;
   title: string;
   description: string;
@@ -266,6 +270,7 @@ export type Promotion = {
 export type PromotionUpsertRequest = {
   businessId: number;
   categoryId?: number;
+  categoryCode?: string;
   categoryName?: string;
   title: string;
   description: string;
@@ -282,7 +287,8 @@ export type PromotionUpsertRequest = {
 export type Category = {
   id: number;
   name: string;
-  description?: string;
+  code: string;
+  description?: string | null;
 };
 
 export type PromotionEngagement = {

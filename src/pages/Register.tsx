@@ -6,8 +6,8 @@ import { toast } from "@/components/ui/sonner";
 import { BadgeCheck, FileCheck, Shield, TrendingUp } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { api } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { api, type Category } from "@/lib/api";
 
 type RegisterRole  = Exclude<UserRole, "ADMIN">; 
 
@@ -16,6 +16,22 @@ const Register = () => {
   const navigate = useNavigate();
   const [role, setRole] = useState<RegisterRole>("BUSINESS_OWNER");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategoryCode, setSelectedCategoryCode] = useState("");
+
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await api.getCategories();
+        setCategories(response);
+      } catch (error) {
+        console.warn("Unable to load categories for registration", error);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,7 +51,8 @@ const Register = () => {
           description: String(formData.get("description") ?? ""),
           contactEmail: String(formData.get("contact-email") ?? email),
           phoneNumber: String(formData.get("phone") ?? ""),
-          category: String(formData.get("category") ?? ""),
+          category: String(formData.get("categoryName") ?? ""),
+          categoryCode: String(formData.get("categoryCode") ?? "") || undefined,
           websiteUrl: String(formData.get("website") ?? ""),
           address: String(formData.get("address") ?? ""),
           logoUrl: String(formData.get("logo-url") ?? ""),
@@ -142,10 +159,25 @@ const Register = () => {
                         <Input id="business-name" name="business-name" placeholder="PromoHub Retailers" required />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground" htmlFor="category">
+                        <label className="text-sm font-medium text-foreground" htmlFor="categoryCode">
                           Business category
                         </label>
-                        <Input id="category" name="category" placeholder="Retail, Food & Beverage, Tech" required />
+                        <select
+                          id="categoryCode"
+                          name="categoryCode"
+                          value={selectedCategoryCode}
+                          onChange={(event) => setSelectedCategoryCode(event.target.value)}
+                          className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          required
+                        >
+                          <option value="">Select a category</option>
+                          {categories.map((category) => (
+                            <option key={category.id} value={category.code}>
+                              {category.name}
+                            </option>
+                          ))}
+                        </select>
+                        <input type="hidden" name="categoryName" value={categories.find((category) => category.code === selectedCategoryCode)?.name ?? ""} />
                       </div>
                     </div>
                     <div className="space-y-2">
