@@ -15,6 +15,7 @@ const Dashboard = () => {
   const [savedPromotionDetails, setSavedPromotionDetails] = useState<Promotion[]>([]);
   const [notificationsCount, setNotificationsCount] = useState(0);
   const [platformAnalytics, setPlatformAnalytics] = useState<PlatformAnalytics | null>(null);
+  const [pendingPromotionsCount, setPendingPromotionsCount] = useState(0);
 
   if (!user) {
     return null;
@@ -28,7 +29,13 @@ const Dashboard = () => {
 
     const loadDashboard = async () => {
       try {
-        if (!isBusiness) {
+        if (isBusiness) {
+          const business = await api.getCurrentUserBusiness(user.id);
+          if (!isMounted) return;
+          const pendingPromotions = await api.getPromotions({ businessId: String(business.id), status: "PENDING" });
+          if (!isMounted) return;
+          setPendingPromotionsCount(pendingPromotions.totalElements ?? pendingPromotions.content.length);
+        } else {
           const saved = await api.getSavedPromotions();
           if (!isMounted) return;
           setSavedPromotions(saved);
@@ -59,7 +66,7 @@ const Dashboard = () => {
     return () => {
       isMounted = false;
     };
-  }, [isAdmin, isBusiness]);
+  }, [isAdmin, isBusiness, user.id]);
 
   const expiringSoonCount = useMemo(() => {
     const today = new Date();
@@ -100,11 +107,11 @@ const Dashboard = () => {
         <section className="grid gap-4 md:grid-cols-3">
           <Card className="border-border">
             <CardHeader>
-              <CardTitle className="text-lg">Saved promotions</CardTitle>
-              <CardDescription>Deals ready for redemption.</CardDescription>
+              <CardTitle className="text-lg">{isBusiness ? "Pending promotions" : "Saved promotions"}</CardTitle>
+              <CardDescription>{isBusiness ? "Awaiting admin approval." : "Deals ready for redemption."}</CardDescription>
             </CardHeader>
             <CardContent className="text-3xl font-semibold">
-              {isBusiness ? "—" : savedPromotions.length}
+              {isBusiness ? pendingPromotionsCount : savedPromotions.length}
             </CardContent>
           </Card>
           <Card className="border-border">
