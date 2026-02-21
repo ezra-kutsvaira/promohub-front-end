@@ -15,7 +15,12 @@ export type PageResponse<T> = {
   last: boolean;
 };
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const RAW_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
+const API_BASE_URL = RAW_API_BASE_URL
+  ? RAW_API_BASE_URL.startsWith("http") || RAW_API_BASE_URL.startsWith("/")
+    ? RAW_API_BASE_URL.replace(/\/$/, "")
+    : `/${RAW_API_BASE_URL.replace(/\/$/, "")}`
+  : "";
 const API_PROXY_TARGET = (import.meta.env.VITE_API_PROXY_TARGET ?? "").trim();
 const SHOULD_PREFER_DEV_PROXY = import.meta.env.DEV && Boolean(API_PROXY_TARGET)
 
@@ -49,7 +54,7 @@ const isNotFoundError = (error: unknown) => {
   if (error instanceof ApiError) return error.status === 404;
   if (!(error instanceof Error)) return false;
   const normalizedMessage = error.message.toLowerCase();
-  return normalizedMessage === "not found" || normalizedMessage.includes("404");
+   return normalizedMessage === "not found" || normalizedMessage.includes("404") || normalizedMessage.includes("no static resource");
 };
 
 
@@ -142,8 +147,9 @@ const apiRequestWithAlternatives = async <T>(
     } catch (error) {
       lastError = error;
       const shouldRetryForStatus = error instanceof ApiError && retryStatuses.includes(error.status);
+      const shouldRetryForNotFoundMessage = isNotFoundError(error);
       const hasMoreCandidates = index < paths.length - 1;
-      if (shouldRetryForStatus && hasMoreCandidates) {
+       if ((shouldRetryForStatus || shouldRetryForNotFoundMessage) && hasMoreCandidates) {
         continue;
       }
       throw error;
@@ -488,15 +494,24 @@ export const api = {
   getCurrentUserBusiness: (ownerId?: number | string) => {
     const ownerScopedPaths = ownerId === undefined
       ? []
-      : [`/api/businesses/owner/${ownerId}`, `/api/owners/${ownerId}/business`];
+      : [
+          `/api/businesses/owner/${ownerId}`,
+          `/api/businesses/owner?ownerId=${encodeURIComponent(String(ownerId))}`,
+          `/api/owners/${ownerId}/business`,
+         ];
+         
+    const currentUserPaths = [
+      "/api/businesses/me",
+      "/api/businesses/my",
+      "/api/businesses/current",
+    ];
+
 
     return apiRequestWithAlternatives<Business>(
-      [
-        ...ownerScopedPaths,
-        "/api/businesses/me",
-        "/api/businesses/my",
-        "/api/businesses/current",
-      ],
+       ownerId === undefined
+        ? currentUserPaths
+        : [...ownerScopedPaths, ...currentUserPaths],
+
       {},
       [400, 404]
     );
