@@ -440,6 +440,12 @@ const PUBLIC_PROMOTIONS_BASE_PATH = "/api/promotions";
 const BUSINESS_PROMOTIONS_BASE_PATH = "/api/business/promotions";
 const BUSINESS_PROMOTIONS_ALIAS_BASE_PATH = "/business/promotions";
 
+const toPromotionArray = (payload: PageResponse<Promotion> | Promotion[] | null | undefined): Promotion[] => {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  return payload.content ?? [];
+};
+
 export const api = {
   login: (payload: LoginRequest) => apiRequestWithAlternatives<AuthPayload>(
     ["/api/auth/login", "/api/auth/signin", "/api/auth/sign-in", "/auth/login", "/auth/signin"],
@@ -458,7 +464,7 @@ export const api = {
     return apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`);
   },
 
-   getBusinessPromotions: (params?: Record<string, string>) => {
+  getBusinessPromotions: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
     return apiRequestWithAlternatives<PageResponse<Promotion> | Promotion[]>(
       [
@@ -469,6 +475,40 @@ export const api = {
       {},
       [400, 404]
     );
+  },
+
+  getCurrentUserBusinessPromotions: async (businessId: number | string, ownerId?: number | string) => {
+    const parameterCandidates: Array<Record<string, string> | undefined> = [
+      { businessId: String(businessId) },
+      { id: String(businessId) },
+      ownerId === undefined ? undefined : { ownerId: String(ownerId) },
+      ownerId === undefined ? undefined : { userId: String(ownerId) },
+      undefined,
+    ];
+
+    let lastError: unknown;
+    for (const candidate of parameterCandidates) {
+      try {
+        const response = await api.getBusinessPromotions(candidate);
+        const promotions = toPromotionArray(response);
+
+        if (promotions.length === 0 && candidate) {
+          continue;
+        }
+
+        return promotions.filter((promotion) =>
+          String(promotion.businessId) === String(businessId)
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to load business promotions.");
   },
 
 

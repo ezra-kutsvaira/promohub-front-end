@@ -75,11 +75,10 @@ const Dashboard = () => {
         if (isBusiness) {
           const business = await api.getCurrentUserBusiness(user.id);
           if (!isMounted) return;
-          const allBusinessPromotionsPayload = await api.getBusinessPromotions({ businessId: String(business.id) });
-          const allBusinessPromotions = toPromotionPage(allBusinessPromotionsPayload as PageResponse<Promotion> | Promotion[] | null | undefined);
+          const allBusinessPromotions = await api.getCurrentUserBusinessPromotions(business.id, user.id);
           if (!isMounted) return;
-          setBusinessPromotions(allBusinessPromotions.content);
-          setPendingPromotionsCount(allBusinessPromotions.content.filter(isPendingPromotion).length);
+          setBusinessPromotions(allBusinessPromotions);
+          setPendingPromotionsCount(allBusinessPromotions.filter(isPendingPromotion).length);
           } else if (!isAdmin) {
           const saved = await api.getSavedPromotions();
           if (!isMounted) return;
