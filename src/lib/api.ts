@@ -51,10 +51,14 @@ const NETWORK_ERROR_MESSAGE =
   "Unable to reach the API server. Make sure the backend is running and your VITE_API_BASE_URL or VITE_API_PROXY_TARGET is configured correctly.";
 
 const isNotFoundError = (error: unknown) => {
-  if (error instanceof ApiError) return error.status === 404;
+  if (error instanceof ApiError) {
+    if (error.status === 404) return true;
+    const normalizedMessage = error.message.toLowerCase();
+    return normalizedMessage === "not found" || normalizedMessage.includes("404") || normalizedMessage.includes("no static resource");
+  }
   if (!(error instanceof Error)) return false;
   const normalizedMessage = error.message.toLowerCase();
-   return normalizedMessage === "not found" || normalizedMessage.includes("404") || normalizedMessage.includes("no static resource");
+  return normalizedMessage === "not found" || normalizedMessage.includes("404") || normalizedMessage.includes("no static resource");
 };
 
 
@@ -66,6 +70,27 @@ const parseJson = async (response: Response) => {
   } catch {
     return null;
   }
+};
+
+const isApiResponseEnvelope = <T>(payload: unknown): payload is ApiResponse<T> => {
+  if (!payload || typeof payload !== "object") return false;
+  return "success" in payload && "data" in payload;
+};
+
+const getErrorMessageFromPayload = (payload: unknown, fallbackMessage: string) => {
+  if (!payload || typeof payload !== "object") return fallbackMessage;
+
+  const message = "message" in payload ? payload.message : undefined;
+  if (typeof message === "string" && message.trim().length > 0) {
+    return message;
+  }
+
+  const error = "error" in payload ? payload.error : undefined;
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+
+  return fallbackMessage;
 };
 
 const performRequest = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -108,12 +133,22 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
     clearSession();
   }
 
-  const payload = (await parseJson(response)) as ApiResponse<T> | null;
+  const payload = await parseJson(response);
 
-  if (!response.ok || !payload) throw new ApiError(payload?.message ?? response.statusText, response.status);
-  if (!payload.success) throw new Error(payload.message ?? "Request failed");
+  if (!response.ok) {
+    throw new ApiError(getErrorMessageFromPayload(payload, response.statusText), response.status);
+  }
 
-  return payload.data;
+  if (payload === null) {
+    return undefined as T;
+  }
+
+  if (isApiResponseEnvelope<T>(payload)) {
+    if (!payload.success) throw new Error(payload.message ?? "Request failed");
+    return payload.data;
+  }
+
+  return payload as T;
 };
 
 const apiRequestWithFallback = async <T>(
