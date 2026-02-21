@@ -18,6 +18,7 @@ const Dashboard = () => {
   const [platformAnalytics, setPlatformAnalytics] = useState<PlatformAnalytics | null>(null);
   const [pendingPromotionsCount, setPendingPromotionsCount] = useState(0);
   const [businessPromotions, setBusinessPromotions] = useState<Promotion[]>([]);
+  const [adminPromotions, setAdminPromotions] = useState<Promotion[]>([]);
   const location = useLocation();
 
   if (!user) {
@@ -42,7 +43,7 @@ const Dashboard = () => {
           const allBusinessPromotions = await api.getPromotions({ businessId: String(business.id) });
           if (!isMounted) return;
           setBusinessPromotions(allBusinessPromotions.content);
-        } else {
+          } else if (!isAdmin) {
           const saved = await api.getSavedPromotions();
           if (!isMounted) return;
           setSavedPromotions(saved);
@@ -59,6 +60,9 @@ const Dashboard = () => {
         }
 
         if (isAdmin) {
+           const promotions = await api.getAdminPromotions();
+          if (!isMounted) return;
+          setAdminPromotions(promotions);
           const analytics = await api.getPlatformAnalytics();
           if (!isMounted) return;
           setPlatformAnalytics(analytics);
@@ -97,6 +101,7 @@ const Dashboard = () => {
   const pendingPromotions = promotionsWithNewlyCreated.filter((promotion) => promotion.status === "PENDING");
   const approvedPromotions = promotionsWithNewlyCreated.filter((promotion) => ["APPROVED", "ACTIVE"].includes(promotion.status));
   const rejectedPromotions = promotionsWithNewlyCreated.filter((promotion) => promotion.status === "REJECTED");
+  const submittedPromotions = adminPromotions.filter((promotion) => ["SUBMITTED", "PENDING"].includes(promotion.status));
 
   return (
     <div className="min-h-screen bg-background">
@@ -127,11 +132,11 @@ const Dashboard = () => {
         <section className="grid gap-4 md:grid-cols-3">
           <Card className="border-border">
             <CardHeader>
-              <CardTitle className="text-lg">{isBusiness ? "Pending promotions" : "Saved promotions"}</CardTitle>
-              <CardDescription>{isBusiness ? "Awaiting admin approval." : "Deals ready for redemption."}</CardDescription>
+              <CardTitle className="text-lg">{isBusiness ? "Pending promotions" : isAdmin ? "Submitted promotions" : "Saved promotions"}</CardTitle>
+              <CardDescription>{isBusiness ? "Awaiting admin approval." : isAdmin ? "Waiting for moderation decision." : "Deals ready for redemption."}</CardDescription>
             </CardHeader>
             <CardContent className="text-3xl font-semibold">
-              {isBusiness ? pendingPromotionsCount : savedPromotions.length}
+                {isBusiness ? pendingPromotionsCount : isAdmin ? submittedPromotions.length : savedPromotions.length}
             </CardContent>
           </Card>
           <Card className="border-border">
@@ -327,6 +332,33 @@ const Dashboard = () => {
             </Card>
           </section>
         )}
+
+         {isAdmin && (
+          <section>
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle>Submitted promotions</CardTitle>
+                <CardDescription>Newest promotions awaiting admin review.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {submittedPromotions.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No submitted promotions at the moment.</p>
+                )}
+                {submittedPromotions.slice(0, 5).map((promotion) => (
+                  <div key={promotion.id} className="rounded-lg border border-border p-4">
+                    <p className="font-semibold">{promotion.title}</p>
+                    <p className="text-sm text-muted-foreground">Submitted by business #{promotion.businessId}.</p>
+                    <Badge variant="outline" className="mt-2">{promotion.status}</Badge>
+                  </div>
+                ))}
+                <Button variant="outline" asChild>
+                  <Link to="/operations-console">Review all submissions</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
       </main>
     </div>
   );
