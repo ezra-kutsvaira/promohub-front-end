@@ -8,13 +8,46 @@ import { ArrowUpRight, BookmarkCheck, CalendarCheck, Megaphone, Sparkles, Users 
 import { Link, useLocation } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { useEffect, useMemo, useState } from "react";
-import { api, type PlatformAnalytics, type Promotion, type SavedPromotion } from "@/lib/api";
+import { api, type PageResponse, type PlatformAnalytics, type Promotion, type SavedPromotion } from "@/lib/api";
 import {
   getPromotionVerificationStatus,
   isApprovedPromotion,
   isPendingPromotion,
   isRejectedPromotion,
 } from "@/lib/promotionStatus";
+
+const toPromotionPage = (payload: PageResponse<Promotion> | Promotion[] | null | undefined): PageResponse<Promotion> => {
+  if (Array.isArray(payload)) {
+    return {
+      content: payload,
+      pageNumber: 0,
+      pageSize: payload.length,
+      totalElements: payload.length,
+      totalPages: payload.length > 0 ? 1 : 0,
+      last: true,
+    };
+  }
+
+  if (!payload) {
+    return {
+      content: [],
+      pageNumber: 0,
+      pageSize: 0,
+      totalElements: 0,
+      totalPages: 0,
+      last: true,
+    };
+  }
+
+  return {
+    content: payload.content ?? [],
+    pageNumber: payload.pageNumber ?? 0,
+    pageSize: payload.pageSize ?? payload.content?.length ?? 0,
+    totalElements: payload.totalElements ?? payload.content?.length ?? 0,
+    totalPages: payload.totalPages ?? 0,
+    last: payload.last ?? true,
+  };
+};
 
 const Dashboard = () => {
   const { user } = useAuth();
