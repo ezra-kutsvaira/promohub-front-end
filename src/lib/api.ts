@@ -51,7 +51,7 @@ const NETWORK_ERROR_MESSAGE =
   "Unable to reach the API server. Make sure the backend is running and your VITE_API_BASE_URL or VITE_API_PROXY_TARGET is configured correctly.";
 
 const isNotFoundError = (error: unknown) => {
-  if (error instanceof ApiError) {
+ if (error instanceof ApiError) {
     if (error.status === 404) return true;
     const normalizedMessage = error.message.toLowerCase();
     return normalizedMessage === "not found" || normalizedMessage.includes("404") || normalizedMessage.includes("no static resource");
@@ -527,29 +527,42 @@ export const api = {
   getBusinesses: () => apiRequest<PageResponse<Business> | Business[]>("/api/businesses"),
   getCategories: () => apiRequest<Category[]>("/api/categories", { skipAuth: true }),
   getCurrentUserBusiness: (ownerId?: number | string) => {
+     const currentUserPaths = [
+      "/api/businesses/me",
+      "/api/businesses/my",
+      "/api/businesses/current",
+    ];
+
     const ownerScopedPaths = ownerId === undefined
       ? []
       : [
           `/api/businesses/owner/${ownerId}`,
           `/api/businesses/owner?ownerId=${encodeURIComponent(String(ownerId))}`,
           `/api/owners/${ownerId}/business`,
-         ];
-         
-    const currentUserPaths = [
-      "/api/businesses/me",
-      "/api/businesses/my",
-      "/api/businesses/current",
-    ];
+      ];
 
 
     return apiRequestWithAlternatives<Business>(
-       ownerId === undefined
+      ownerId === undefined
         ? currentUserPaths
-        : [...ownerScopedPaths, ...currentUserPaths],
-
+      : [...currentUserPaths, ...ownerScopedPaths],
       {},
       [400, 404]
-    );
+      ).catch(async (error) => {
+      if (ownerId === undefined) {
+        throw error;
+      }
+
+      const businesses = await api.getBusinesses();
+      const businessList = Array.isArray(businesses) ? businesses : businesses.content;
+      const ownerBusiness = businessList.find((business) => String(business.ownerId) === String(ownerId));
+
+      if (ownerBusiness) {
+        return ownerBusiness;
+      }
+
+      throw error;
+    });
   },
   deleteBusiness: (id: number | string) => apiRequest<void>(`/api/businesses/${id}`, { method: "DELETE" }),
   requestBusinessVerification: (payload: BusinessVerificationRequest) => apiRequestWithAlternatives(
