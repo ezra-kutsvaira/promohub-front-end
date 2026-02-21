@@ -67,8 +67,12 @@ const Dashboard = () => {
           if (!isMounted) return;
           setPlatformAnalytics(analytics);
         }
-      } catch {
-        // Silently ignore dashboard errors to keep UI responsive.
+      } catch (error) {
+        if (isBusiness) {
+          const message = error instanceof Error ? error.message : "Unable to load your promotions.";
+          toast.error(message);
+        }
+        
       }
     };
 
