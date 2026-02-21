@@ -459,7 +459,7 @@ export const api = {
 
    getBusinessPromotions: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return apiRequestWithAlternatives<PageResponse<Promotion>>(
+    return apiRequestWithAlternatives<PageResponse<Promotion> | Promotion[]>(
       [
         `${BUSINESS_PROMOTIONS_BASE_PATH}${query}`,
         `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}${query}`,
