@@ -2,9 +2,10 @@ import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { ArrowUpRight, BookmarkCheck, CalendarCheck, Megaphone, Sparkles, Users } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { useEffect, useMemo, useState } from "react";
 import { api, type PlatformAnalytics, type Promotion, type SavedPromotion } from "@/lib/api";
@@ -16,6 +17,8 @@ const Dashboard = () => {
   const [notificationsCount, setNotificationsCount] = useState(0);
   const [platformAnalytics, setPlatformAnalytics] = useState<PlatformAnalytics | null>(null);
   const [pendingPromotionsCount, setPendingPromotionsCount] = useState(0);
+  const [businessPromotions, setBusinessPromotions] = useState<Promotion[]>([]);
+  const location = useLocation();
 
   if (!user) {
     return null;
@@ -35,6 +38,10 @@ const Dashboard = () => {
           const pendingPromotions = await api.getPromotions({ businessId: String(business.id), status: "PENDING" });
           if (!isMounted) return;
           setPendingPromotionsCount(pendingPromotions.totalElements ?? pendingPromotions.content.length);
+
+          const allBusinessPromotions = await api.getPromotions({ businessId: String(business.id) });
+          if (!isMounted) return;
+          setBusinessPromotions(allBusinessPromotions.content);
         } else {
           const saved = await api.getSavedPromotions();
           if (!isMounted) return;
@@ -77,6 +84,19 @@ const Dashboard = () => {
       return endDate >= today && endDate <= cutoff;
     }).length;
   }, [savedPromotionDetails]);
+
+  const createdPromotion = (location.state as { createdPromotion?: Promotion } | null)?.createdPromotion;
+  const promotionsWithNewlyCreated = useMemo(() => {
+    if (!createdPromotion || businessPromotions.some((item) => item.id === createdPromotion.id)) {
+      return businessPromotions;
+    }
+
+    return [createdPromotion, ...businessPromotions];
+  }, [businessPromotions, createdPromotion]);
+
+  const pendingPromotions = promotionsWithNewlyCreated.filter((promotion) => promotion.status === "PENDING");
+  const approvedPromotions = promotionsWithNewlyCreated.filter((promotion) => ["APPROVED", "ACTIVE"].includes(promotion.status));
+  const rejectedPromotions = promotionsWithNewlyCreated.filter((promotion) => promotion.status === "REJECTED");
 
   return (
     <div className="min-h-screen bg-background">
@@ -133,6 +153,62 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </section>
+
+        {isBusiness && (
+          <section>
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle>Posted promotions</CardTitle>
+                <CardDescription>Track admin review outcomes and when your promotions go live.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="pending" className="space-y-4">
+                  <TabsList>
+                    <TabsTrigger value="pending">Pending ({pendingPromotions.length})</TabsTrigger>
+                    <TabsTrigger value="approved">Approved ({approvedPromotions.length})</TabsTrigger>
+                    <TabsTrigger value="rejected">Rejected ({rejectedPromotions.length})</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="pending" className="space-y-3">
+                    {pendingPromotions.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No pending promotions right now.</p>
+                    )}
+                    {pendingPromotions.map((promotion) => (
+                      <div key={promotion.id} className="rounded-lg border border-border p-4">
+                        <p className="font-semibold">{promotion.title}</p>
+                        <p className="text-sm text-muted-foreground">Awaiting admin approval.</p>
+                        <Badge variant="outline" className="mt-2">PENDING</Badge>
+                      </div>
+                    ))}
+                  </TabsContent>
+                  <TabsContent value="approved" className="space-y-3">
+                    {approvedPromotions.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No approved promotions yet.</p>
+                    )}
+                    {approvedPromotions.map((promotion) => (
+                      <div key={promotion.id} className="rounded-lg border border-border p-4">
+                        <p className="font-semibold">{promotion.title}</p>
+                        <p className="text-sm text-muted-foreground">Approved promotions are visible to customers during their active date range.</p>
+                        <Badge className="mt-2">{promotion.status}</Badge>
+                      </div>
+                    ))}
+                  </TabsContent>
+                  <TabsContent value="rejected" className="space-y-3">
+                    {rejectedPromotions.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No rejected promotions.</p>
+                    )}
+                    {rejectedPromotions.map((promotion) => (
+                      <div key={promotion.id} className="rounded-lg border border-border p-4">
+                        <p className="font-semibold">{promotion.title}</p>
+                        <p className="text-sm text-muted-foreground">Denied: {promotion.rejectionReason ?? "No reason provided."}</p>
+                        <Badge variant="destructive" className="mt-2">REJECTED</Badge>
+                      </div>
+                    ))}
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          </section>
+        )}
 
         <section className="grid gap-6 lg:grid-cols-[2fr,1fr]">
           <Card className="border-border">
