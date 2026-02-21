@@ -297,6 +297,7 @@ export type Promotion = {
   termsAndConditions: string;
   location: string;
   status: string;
+  verificationStatus?: string;
   verifiedAt?: string;
   verifiedById?: number;
   verifiedByEmail?: string;
