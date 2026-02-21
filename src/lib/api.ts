@@ -416,45 +416,20 @@ export const api = {
     return apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`);
   },
 
-  getBusinessPromotions: (params?: Record<string, string>) => {
-    const queryCandidates: string[] = [];
-    const pushQuery = (candidate?: Record<string, string>) => {
-      const query = candidate ? `?${new URLSearchParams(candidate).toString()}` : "";
-      if (!queryCandidates.includes(query)) {
-        queryCandidates.push(query);
-      }
-    };
-
-    pushQuery(params);
-
-    const businessId = params?.businessId;
-    if (businessId) {
-      const ownerIdParams = { ...params, ownerId: businessId };
-      delete ownerIdParams.businessId;
-      pushQuery(ownerIdParams);
-
-      const snakeCaseBusinessIdParams = { ...params, business_id: businessId };
-      delete snakeCaseBusinessIdParams.businessId;
-      pushQuery(snakeCaseBusinessIdParams);
-    }
-
-    const pathCandidates = queryCandidates.flatMap((query) => [
-      `${BUSINESS_PROMOTIONS_BASE_PATH}${query}`,
-      `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}${query}`,
-    ]);
-
-    if (businessId) {
-      pathCandidates.push(`/api/businesses/${businessId}/promotions`);
-    }
-
+   getBusinessPromotions: (params?: Record<string, string>) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : "";
     return apiRequestWithAlternatives<PageResponse<Promotion>>(
-      pathCandidates,
+      [
+        `${BUSINESS_PROMOTIONS_BASE_PATH}${query}`,
+        `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}${query}`,
+        `/api/promotions${query}`,
+      ],
       {},
       [400, 404]
     );
   },
 
-  
+
   getPromotion: (id: string | number) => apiRequest<Promotion>(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`),
   createPromotion: (payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(
     [PUBLIC_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_ALIAS_BASE_PATH],
