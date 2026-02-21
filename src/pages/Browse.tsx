@@ -10,6 +10,7 @@ import { api, type Promotion } from "@/lib/api";
 import { formatDate, formatDiscount } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
 import { landingPromotions } from "@/data/landing";
+import { isApprovedPromotion } from "@/lib/promotionStatus";
 
 const Browse = () => {
   const location = useLocation();
@@ -24,10 +25,11 @@ const Browse = () => {
         const response = await api.getPromotions();
         const content = Array.isArray(response) ? response : response.content;
         const createdPromotion = (location.state as {createdPromotion?: Promotion } | null)?.createdPromotion;
+        const approvedContent = content.filter(isApprovedPromotion);
 
         if (isMounted) {
-          const baseList = content.length > 0 ? content : landingPromotions;
-          if(createdPromotion && !baseList.some((item) => item.id === createdPromotion.id)) {
+          const baseList = approvedContent.length > 0 ? approvedContent : landingPromotions;
+          if(createdPromotion && isApprovedPromotion(createdPromotion) && !baseList.some((item) => item.id === createdPromotion.id)) {
             setPromotions([createdPromotion, ...baseList]);
           } else {
             setPromotions(baseList);
@@ -142,7 +144,7 @@ const Browse = () => {
                 discount={formatDiscount(promo.discountType, promo.discountValue)}
                 location={promo.location}
                 validUntil={formatDate(promo.endDate)}
-                isVerified={["APPROVED", "ACTIVE"].includes(promo.status)}
+                isVerified={isApprovedPromotion(promo)}
                 imageUrl={promo.imageUrl}
               />
             </motion.div>

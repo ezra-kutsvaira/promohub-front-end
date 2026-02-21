@@ -9,6 +9,12 @@ import { Link, useLocation } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { useEffect, useMemo, useState } from "react";
 import { api, type PageResponse, type PlatformAnalytics, type Promotion, type SavedPromotion } from "@/lib/api";
+import {
+  getPromotionVerificationStatus,
+  isApprovedPromotion,
+  isPendingPromotion,
+  isRejectedPromotion,
+} from "@/lib/promotionStatus";
 
 const toPromotionPage = (payload: PageResponse<Promotion> | Promotion[] | null | undefined): PageResponse<Promotion> => {
   if (Array.isArray(payload)) {
@@ -41,18 +47,6 @@ const toPromotionPage = (payload: PageResponse<Promotion> | Promotion[] | null |
     totalPages: payload.totalPages ?? 0,
     last: payload.last ?? true,
   };
-};
-
-const getPromotionStatus = (promotion: Promotion): string => promotion.status?.toUpperCase?.() ?? "";
-
-const isPendingPromotion = (promotion: Promotion): boolean => {
-  const status = getPromotionStatus(promotion);
-  return status === "PENDING" || status === "SUBMITTED";
-};
-
-const isApprovedPromotion = (promotion: Promotion): boolean => {
-  const status = getPromotionStatus(promotion);
-  return status === "APPROVED" || status === "ACTIVE";
 };
 
 const Dashboard = () => {
@@ -147,7 +141,7 @@ const Dashboard = () => {
 
   const pendingPromotions = promotionsWithNewlyCreated.filter(isPendingPromotion);
   const approvedPromotions = promotionsWithNewlyCreated.filter(isApprovedPromotion);
-  const rejectedPromotions = promotionsWithNewlyCreated.filter((promotion) => getPromotionStatus(promotion) === "REJECTED");
+  const rejectedPromotions = promotionsWithNewlyCreated.filter(isRejectedPromotion);
   const submittedPromotions = adminPromotions.filter(isPendingPromotion);
 
   return (
@@ -240,7 +234,7 @@ const Dashboard = () => {
                       <div key={promotion.id} className="rounded-lg border border-border p-4">
                         <p className="font-semibold">{promotion.title}</p>
                         <p className="text-sm text-muted-foreground">Approved promotions are visible to customers during their active date range.</p>
-                        <Badge className="mt-2">{promotion.status}</Badge>
+                        <Badge className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
                       </div>
                     ))}
                   </TabsContent>
@@ -395,7 +389,7 @@ const Dashboard = () => {
                   <div key={promotion.id} className="rounded-lg border border-border p-4">
                     <p className="font-semibold">{promotion.title}</p>
                     <p className="text-sm text-muted-foreground">Submitted by business #{promotion.businessId}.</p>
-                    <Badge variant="outline" className="mt-2">{promotion.status}</Badge>
+                    <Badge variant="outline" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
                   </div>
                 ))}
                 <Button variant="outline" asChild>
