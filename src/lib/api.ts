@@ -425,7 +425,7 @@ export const api = {
         `/api/promotions${query}`,
       ],
       {},
-      [404]
+      [400, 404]
     );
   },
 
@@ -492,11 +492,13 @@ export const api = {
 
     return apiRequestWithAlternatives<Business>(
       [
+        ...ownerScopedPaths,
         "/api/businesses/me",
         "/api/businesses/my",
         "/api/businesses/current",
-        ...ownerScopedPaths,
-      ]
+      ],
+      {},
+      [400, 404]
     );
   },
   deleteBusiness: (id: number | string) => apiRequest<void>(`/api/businesses/${id}`, { method: "DELETE" }),
