@@ -36,11 +36,11 @@ const Dashboard = () => {
         if (isBusiness) {
           const business = await api.getCurrentUserBusiness(user.id);
           if (!isMounted) return;
-          const pendingPromotions = await api.getPromotions({ businessId: String(business.id), status: "PENDING" });
+          const pendingPromotions = await api.getBusinessPromotions({ businessId: String(business.id), status: "PENDING" });
           if (!isMounted) return;
           setPendingPromotionsCount(pendingPromotions.totalElements ?? pendingPromotions.content.length);
 
-          const allBusinessPromotions = await api.getPromotions({ businessId: String(business.id) });
+          const allBusinessPromotions = await api.getBusinessPromotions({ businessId: String(business.id) });
           if (!isMounted) return;
           setBusinessPromotions(allBusinessPromotions.content);
           } else if (!isAdmin) {

@@ -413,9 +413,20 @@ export const api = {
 
   getPromotions: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`, { skipAuth: true });
+    return apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`);
   },
-  getPromotion: (id: string | number) => apiRequest<Promotion>(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`, { skipAuth: true }),
+
+  getBusinessPromotions: (params?: Record<string, string>) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return apiRequestWithAlternatives<PageResponse<Promotion>>(
+      [`${BUSINESS_PROMOTIONS_BASE_PATH}${query}`, `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}${query}`],
+      {},
+      [404]
+    );
+  },
+
+  
+  getPromotion: (id: string | number) => apiRequest<Promotion>(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`),
   createPromotion: (payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(
     [PUBLIC_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_ALIAS_BASE_PATH],
     { method: "POST", body: JSON.stringify(payload) },
