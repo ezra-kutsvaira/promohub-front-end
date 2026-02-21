@@ -72,6 +72,27 @@ const parseJson = async (response: Response) => {
   }
 };
 
+const isApiResponseEnvelope = <T>(payload: unknown): payload is ApiResponse<T> => {
+  if (!payload || typeof payload !== "object") return false;
+  return "success" in payload && "data" in payload;
+};
+
+const getErrorMessageFromPayload = (payload: unknown, fallbackMessage: string) => {
+  if (!payload || typeof payload !== "object") return fallbackMessage;
+
+  const message = "message" in payload ? payload.message : undefined;
+  if (typeof message === "string" && message.trim().length > 0) {
+    return message;
+  }
+
+  const error = "error" in payload ? payload.error : undefined;
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+
+  return fallbackMessage;
+};
+
 const performRequest = async (input: RequestInfo | URL, init?: RequestInit) => {
   try {
     return await fetch(input, init);
@@ -112,12 +133,22 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
     clearSession();
   }
 
-  const payload = (await parseJson(response)) as ApiResponse<T> | null;
+  const payload = await parseJson(response);
 
-  if (!response.ok || !payload) throw new ApiError(payload?.message ?? response.statusText, response.status);
-  if (!payload.success) throw new Error(payload.message ?? "Request failed");
+  if (!response.ok) {
+    throw new ApiError(getErrorMessageFromPayload(payload, response.statusText), response.status);
+  }
 
-  return payload.data;
+  if (payload === null) {
+    return undefined as T;
+  }
+
+  if (isApiResponseEnvelope<T>(payload)) {
+    if (!payload.success) throw new Error(payload.message ?? "Request failed");
+    return payload.data;
+  }
+
+  return payload as T;
 };
 
 const apiRequestWithFallback = async <T>(
