@@ -16,7 +16,7 @@ export const normalizeDiscountTypeForApi = (value?: string): string => {
     || normalized === "FLAT"
     || normalized === "FLAT_AMOUNT"
   ) {
-    return "FIXED";
+    return "FLAT";
   }
 
   if (normalized === "PERCENT" || normalized === "PERCENTAGE") {
