@@ -10,6 +10,7 @@ import { api, type Event, type Promotion } from "@/lib/api";
 import { landingEvents, landingPromotions } from "@/data/landing";
 import { formatDate, formatDiscount } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
+import { isApprovedPromotion } from "@/lib/promotionStatus";
 
 const Index = () => {
   const [featuredPromotions, setFeaturedPromotions] = useState<Promotion[]>(landingPromotions);
@@ -30,7 +31,8 @@ const Index = () => {
         const events = Array.isArray(eventsResponse) ? eventsResponse : eventsResponse.content;
 
         if (isMounted) {
-          const nextPromotions = promotions.length > 0 ? promotions : landingPromotions;
+          const approvedPromotions = promotions.filter(isApprovedPromotion);
+          const nextPromotions = approvedPromotions.length > 0 ? approvedPromotions : landingPromotions;
           const nextEvents = events.length > 0 ? events : landingEvents;
           setFeaturedPromotions(nextPromotions.slice(0, 4));
           setRoadshows(nextEvents.slice(0, 3));
@@ -147,7 +149,7 @@ const Index = () => {
                   discount={formatDiscount(promo.discountType, promo.discountValue)}
                   location={promo.location}
                   validUntil={formatDate(promo.endDate)}
-                  isVerified={["APPROVED", "ACTIVE"].includes(promo.status)}
+                  isVerified={isApprovedPromotion(promo)}
                   imageUrl={promo.imageUrl}
                 />
               </motion.div>
