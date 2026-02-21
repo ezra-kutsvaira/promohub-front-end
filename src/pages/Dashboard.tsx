@@ -43,6 +43,18 @@ const toPromotionPage = (payload: PageResponse<Promotion> | Promotion[] | null |
   };
 };
 
+const getPromotionStatus = (promotion: Promotion): string => promotion.status?.toUpperCase?.() ?? "";
+
+const isPendingPromotion = (promotion: Promotion): boolean => {
+  const status = getPromotionStatus(promotion);
+  return status === "PENDING" || status === "SUBMITTED";
+};
+
+const isApprovedPromotion = (promotion: Promotion): boolean => {
+  const status = getPromotionStatus(promotion);
+  return status === "APPROVED" || status === "ACTIVE";
+};
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [savedPromotions, setSavedPromotions] = useState<SavedPromotion[]>([]);
@@ -69,15 +81,11 @@ const Dashboard = () => {
         if (isBusiness) {
           const business = await api.getCurrentUserBusiness(user.id);
           if (!isMounted) return;
-          const pendingPromotionsPayload = await api.getBusinessPromotions({ businessId: String(business.id), status: "PENDING" });
-          const pendingPromotions = toPromotionPage(pendingPromotionsPayload as PageResponse<Promotion> | Promotion[] | null | undefined);
-          if (!isMounted) return;
-          setPendingPromotionsCount(pendingPromotions.totalElements);
-
           const allBusinessPromotionsPayload = await api.getBusinessPromotions({ businessId: String(business.id) });
           const allBusinessPromotions = toPromotionPage(allBusinessPromotionsPayload as PageResponse<Promotion> | Promotion[] | null | undefined);
           if (!isMounted) return;
           setBusinessPromotions(allBusinessPromotions.content);
+          setPendingPromotionsCount(allBusinessPromotions.content.filter(isPendingPromotion).length);
           } else if (!isAdmin) {
           const saved = await api.getSavedPromotions();
           if (!isMounted) return;
@@ -137,10 +145,10 @@ const Dashboard = () => {
     return [createdPromotion, ...businessPromotions];
   }, [businessPromotions, createdPromotion]);
 
-  const pendingPromotions = promotionsWithNewlyCreated.filter((promotion) => promotion.status === "PENDING");
-  const approvedPromotions = promotionsWithNewlyCreated.filter((promotion) => ["APPROVED", "ACTIVE"].includes(promotion.status));
-  const rejectedPromotions = promotionsWithNewlyCreated.filter((promotion) => promotion.status === "REJECTED");
-  const submittedPromotions = adminPromotions.filter((promotion) => ["SUBMITTED", "PENDING"].includes(promotion.status));
+  const pendingPromotions = promotionsWithNewlyCreated.filter(isPendingPromotion);
+  const approvedPromotions = promotionsWithNewlyCreated.filter(isApprovedPromotion);
+  const rejectedPromotions = promotionsWithNewlyCreated.filter((promotion) => getPromotionStatus(promotion) === "REJECTED");
+  const submittedPromotions = adminPromotions.filter(isPendingPromotion);
 
   return (
     <div className="min-h-screen bg-background">
