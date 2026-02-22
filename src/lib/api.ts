@@ -446,6 +446,9 @@ const toPromotionArray = (payload: PageResponse<Promotion> | Promotion[] | null 
   return payload.content ?? [];
 };
 
+const toStatusParam = (status: string): string =>
+  status.trim().replace(/[-\s]+/g, "_").toUpperCase();
+
 export const api = {
   login: (payload: LoginRequest) => apiRequestWithAlternatives<AuthPayload>(
     ["/api/auth/login", "/api/auth/signin", "/api/auth/sign-in", "/auth/login", "/auth/signin"],
@@ -484,6 +487,50 @@ export const api = {
       ownerId === undefined ? undefined : { ownerId: String(ownerId) },
       ownerId === undefined ? undefined : { userId: String(ownerId) },
       undefined,
+    ];
+
+    let lastError: unknown;
+    for (const candidate of parameterCandidates) {
+      try {
+        const response = await api.getBusinessPromotions(candidate);
+        const promotions = toPromotionArray(response);
+
+        if (promotions.length === 0 && candidate) {
+          continue;
+        }
+
+        return promotions.filter((promotion) =>
+          String(promotion.businessId) === String(businessId)
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to load business promotions.");
+  },
+
+  getCurrentUserBusinessPromotionsByStatus: async (
+    businessId: number | string,
+    requestedStatus: string,
+    ownerId?: number | string
+  ) => {
+    const status = toStatusParam(requestedStatus);
+    const parameterCandidates: Array<Record<string, string> | undefined> = [
+      { businessId: String(businessId), verificationStatus: status },
+      { businessId: String(businessId), status },
+      { id: String(businessId), verificationStatus: status },
+      { id: String(businessId), status },
+      ownerId === undefined ? undefined : { ownerId: String(ownerId), verificationStatus: status },
+      ownerId === undefined ? undefined : { ownerId: String(ownerId), status },
+      ownerId === undefined ? undefined : { userId: String(ownerId), verificationStatus: status },
+      ownerId === undefined ? undefined : { userId: String(ownerId), status },
+      { verificationStatus: status },
+      { status },
     ];
 
     let lastError: unknown;

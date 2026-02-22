@@ -75,11 +75,22 @@ const Dashboard = () => {
         if (isBusiness) {
           const business = await api.getCurrentUserBusiness(user.id);
           if (!isMounted) return;
-          const allBusinessPromotions = await api.getCurrentUserBusinessPromotions(business.id, user.id);
+          const [pendingBusinessPromotions, approvedBusinessPromotions, rejectedBusinessPromotions] = await Promise.all([
+            api.getCurrentUserBusinessPromotionsByStatus(business.id, "PENDING", user.id),
+            api.getCurrentUserBusinessPromotionsByStatus(business.id, "APPROVED", user.id),
+            api.getCurrentUserBusinessPromotionsByStatus(business.id, "REJECTED", user.id),
+          ]);
           if (!isMounted) return;
+
+          const uniquePromotions = new Map<number, Promotion>();
+          [...pendingBusinessPromotions, ...approvedBusinessPromotions, ...rejectedBusinessPromotions].forEach((promotion) => {
+            uniquePromotions.set(promotion.id, promotion);
+          });
+
+          const allBusinessPromotions = Array.from(uniquePromotions.values());
           setBusinessPromotions(allBusinessPromotions);
-          setPendingPromotionsCount(allBusinessPromotions.filter(isPendingPromotion).length);
-          } else if (!isAdmin) {
+          setPendingPromotionsCount(pendingBusinessPromotions.length);
+        } else if (!isAdmin) {
           const saved = await api.getSavedPromotions();
           if (!isMounted) return;
           setSavedPromotions(saved);
