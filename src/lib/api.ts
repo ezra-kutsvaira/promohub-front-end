@@ -255,7 +255,7 @@ export type Business = {
   businessVerificationStatus: string;
   verified: boolean;
   createdAt: string;
-  verifiedAt: string;
+  verifiedAt: string; 
 };
 
 export type MfaSetupResponse = { secret: string; qrCodeUrl?: string };
@@ -449,6 +449,23 @@ const toPromotionArray = (payload: PageResponse<Promotion> | Promotion[] | null 
 const toStatusParam = (status: string): string =>
   status.trim().replace(/[-\s]+/g, "_").toUpperCase();
 
+const getPromotionStatus = (promotion: Promotion): string =>
+  toStatusParam(promotion.verificationStatus ?? promotion.status ?? "");
+
+const statusAliases: Record<string, string[]> = {
+  PENDING: ["PENDING", "SUBMITTED"],
+  APPROVED: ["APPROVED", "ACTIVE"],
+  REJECTED: ["REJECTED"],
+};
+
+const matchesRequestedStatus = (promotion: Promotion, requestedStatus: string): boolean => {
+  const normalizedRequestedStatus = toStatusParam(requestedStatus);
+  const normalizedPromotionStatus = getPromotionStatus(promotion);
+  const aliases = statusAliases[normalizedRequestedStatus] ?? [normalizedRequestedStatus];
+  return aliases.includes(normalizedPromotionStatus);
+};
+
+
 export const api = {
   login: (payload: LoginRequest) => apiRequestWithAlternatives<AuthPayload>(
     ["/api/auth/login", "/api/auth/signin", "/api/auth/sign-in", "/auth/login", "/auth/signin"],
@@ -471,9 +488,10 @@ export const api = {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
     return apiRequestWithAlternatives<PageResponse<Promotion> | Promotion[]>(
       [
+        `/api/promotions${query}`,
         `${BUSINESS_PROMOTIONS_BASE_PATH}${query}`,
         `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}${query}`,
-        `/api/promotions${query}`,
+       
       ],
       {},
       [400, 404]
@@ -495,12 +513,10 @@ export const api = {
         const response = await api.getBusinessPromotions(candidate);
         const promotions = toPromotionArray(response);
 
-        if (promotions.length === 0 && candidate) {
-          continue;
-        }
-
+        
         return promotions.filter((promotion) =>
           String(promotion.businessId) === String(businessId)
+         && matchesRequestedStatus(promotion, status)
         );
       } catch (error) {
         lastError = error;

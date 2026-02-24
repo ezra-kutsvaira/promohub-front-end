@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ShieldCheck, Calendar, MapPin, TrendingDown } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { useState } from "react"
 
 interface PromotionCardProps {
   id: string;
@@ -28,6 +29,9 @@ export const PromotionCard = ({
   isVerified,
   imageUrl,
 }: PromotionCardProps) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = Boolean(imageUrl) && !imageFailed;
+
   return (
     <motion.div
       whileHover={{ y: -4 }}
@@ -36,8 +40,13 @@ export const PromotionCard = ({
       <Card className="overflow-hidden h-full flex flex-col shadow-[var(--card-shadow)] hover:shadow-[var(--card-shadow-hover)] transition-shadow">
         {/* Image */}
         <div className="relative h-48 bg-muted overflow-hidden">
-          {imageUrl ? (
-            <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+          {showImage ? (
+            <img
+              src={imageUrl}
+              alt={title}
+              className="w-full h-full object-cover"
+              onError={() => setImageFailed(true)}
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-accent/10">
               <TrendingDown className="h-16 w-16 text-primary/20" />
