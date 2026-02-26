@@ -1,46 +1,76 @@
-# Welcome to your Lovable project
+# 🚀 PromoHub Front-End
 
-## Project info
+> Verified promotions you can trust — discover deals, save favorites, and manage campaigns from one place.
 
-**URL**: https://lovable.dev/projects/8f009a9a-6732-4bbd-8cac-732a48431dec
+## 📚 Table of Contents
+- [✨ Overview](#-overview)
+- [🧩 Core Features](#-core-features)
+- [🛠️ Tech Stack](#️-tech-stack)
+- [⚡ Quick Start](#-quick-start)
+- [🔐 Environment Variables](#-environment-variables)
+- [📜 Available Scripts](#-available-scripts)
+- [🧭 App Routes](#-app-routes)
+- [🔌 Backend Integration Notes](#-backend-integration-notes)
+- [🧪 Troubleshooting](#-troubleshooting)
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## ✨ Overview
+PromoHub is a React + TypeScript web app for browsing and managing verified promotions.
 
-**Use Lovable**
+It supports:
+- 👤 Consumers: browse and save promotions
+- 🏢 Business owners: create and monitor campaigns
+- 🛡️ Admins: moderate promotions and access operations tools
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/8f009a9a-6732-4bbd-8cac-732a48431dec) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🧩 Core Features
+- 🔎 Browse promotions with detail pages
+- ❤️ Save promotions (role-based)
+- 📊 Dashboard views for different user roles
+- 🧾 Promotion creation for business owners
+- 🛠️ Operations console for admin workflows
+- 🔐 Auth-protected and role-guarded routes
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🛠️ Tech Stack
+- ⚛️ React 18
+- 🟦 TypeScript
+- ⚡ Vite
+- 🎨 Tailwind CSS
+- 🧱 shadcn/ui + Radix UI
+- 🔄 TanStack Query
+- 🧭 React Router
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+---
 
-Follow these steps:
+## ⚡ Quick Start
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### 1) Clone and install
+```bash
+git clone <your-repo-url>
+cd promohub-front-end
+npm install
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 2) Configure environment
+```bash
+cp .env.example .env
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### 3) Run locally
+```bash
 npm run dev
 ```
 
-## Connect the frontend to your backend
+App default URL: `http://localhost:5173`
 
-Create a `.env` file in the project root (you can copy from `.env.example`) and configure it to match your backend.
+---
 
-For your provided Docker setup, backend app is exposed on `localhost:8080`, so use:
+## 🔐 Environment Variables
+Create a `.env` file in the project root.
 
 ```env
 VITE_DEV_PORT=5173
@@ -48,66 +78,79 @@ VITE_API_BASE_URL=http://localhost:8080
 VITE_API_PROXY_TARGET=http://localhost:8080
 ```
 
-Why these values:
-- Frontend runs on `5173` to avoid port conflict with backend `8080`.
-- Backend API calls target `http://localhost:8080`.
+### How these work
+- `VITE_DEV_PORT`: Local dev server port
+- `VITE_API_BASE_URL`: Direct API base URL for requests
+- `VITE_API_PROXY_TARGET`: Vite dev proxy target for `/api` calls (useful for avoiding CORS issues)
 
-You can also configure only one connection strategy:
+> In development, if `VITE_API_PROXY_TARGET` is set, `/api/...` calls are routed through Vite proxy.
 
-1. **Direct API base URL** (best for deployed environments):
+---
 
-```env
-VITE_API_BASE_URL=http://localhost:8080
-```
+## 📜 Available Scripts
+- `npm run dev` → start development server
+- `npm run build` → create production build
+- `npm run build:dev` → create development-mode build
+- `npm run preview` → preview production build locally
+- `npm run lint` → run ESLint
+- `npm run test` → run tests via Bun
 
-2. **Local dev proxy** (avoids browser CORS issues in development):
+---
 
-```env
-VITE_API_PROXY_TARGET=http://localhost:8080
-```
+## 🧭 App Routes
 
-Then restart the Vite dev server:
+<details>
+<summary><strong>Click to expand route map</strong> 👇</summary>
 
-```sh
-npm run dev
-```
+| Route | Access | Description |
+|---|---|---|
+| `/` | Public | Landing page |
+| `/browse` | Public | Browse promotions |
+| `/roadshows` | Public | Roadshows list |
+| `/roadshows/:id` | Public | Roadshow details |
+| `/promotion/:id` | Public | Promotion details |
+| `/how-it-works` | Public | Product explainer |
+| `/login` | Public | Login |
+| `/register` | Public | Registration |
+| `/dashboard` | Authenticated | User dashboard |
+| `/saved-promotions` | Consumer/Admin | Saved promotions |
+| `/account-settings` | Authenticated | Account settings |
+| `/promotions/new` | Business Owner | Create promotion |
+| `/operations-console` | Admin | Admin operations console |
 
-> Notes:
-> - All frontend API calls use the `/api/...` route prefix.
-> - If both values are set, requests still resolve to your backend at `localhost:8080`.
+</details>
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 🔌 Backend Integration Notes
+- Ensure your backend API is running (commonly at `http://localhost:8080`).
+- Front-end API requests use `/api/...` endpoints.
+- If requests fail locally, confirm your `.env` values and restart the dev server.
 
-**Use GitHub Codespaces**
+---
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🧪 Troubleshooting
 
-## What technologies are used for this project?
+<details>
+<summary><strong>Common local setup issues</strong> 🧯</summary>
 
-This project is built with:
+### Port already in use
+- Change `VITE_DEV_PORT` in `.env` and restart.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### API not reachable
+- Verify backend is running.
+- Verify `VITE_API_BASE_URL` or `VITE_API_PROXY_TARGET` points to the correct host/port.
 
-## How can I deploy this project?
+### CORS errors in browser
+- Prefer `VITE_API_PROXY_TARGET` in local development.
 
-Simply open [Lovable](https://lovable.dev/projects/8f009a9a-6732-4bbd-8cac-732a48431dec) and click on Share -> Publish.
+</details>
 
-## Can I connect a custom domain to my Lovable project?
+---
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## ✅ Contributor Quick Checklist
+- [ ] Install dependencies
+- [ ] Configure `.env`
+- [ ] Run `npm run dev`
+- [ ] Run `npm run lint`
+- [ ] Open a PR with clear testing notes
