@@ -22,23 +22,32 @@ const PromotionDetail = () => {
     let isMounted = true;
     const loadPromotion = async () => {
       if (!id) {
+        setIsLoading(false);
         return;
       }
+
+      const fallbackPromotion = landingPromotions.find((item) => item.id.toString() === id);
+      if (isMounted && fallbackPromotion) {
+        setPromotion((currentPromotion) => currentPromotion ?? fallbackPromotion);
+      }
+
       try {
         const data = await api.getPromotion(id);
         if (isMounted) {
           setPromotion(data);
         }
+      } catch (error) {
+        if (!fallbackPromotion) {
+          const message = error instanceof Error ? error.message : "Unable to load promotion.";
+          toast.warning(message);
+        }
+      }
+
+      try {
         await api.trackPromotionView(id);
       } catch (error) {
-         if (isMounted && id) {
-          const fallbackPromotion = landingPromotions.find((item) => item.id.toString() === id);
-          if (fallbackPromotion) {
-            setPromotion(fallbackPromotion);
-          }
-        }
-        const message = error instanceof Error ? error.message : "Unable to load promotion.";
-        toast.warning(`${message} Showing cached promotion details instead.`);
+        const message = error instanceof Error ? error.message : "Unable to log promotion view.";
+        toast.info(message);
       } finally {
         if (isMounted) {
           setIsLoading(false);
