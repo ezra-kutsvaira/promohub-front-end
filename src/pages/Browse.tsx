@@ -16,6 +16,9 @@ const Browse = () => {
   const location = useLocation();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("ALL");
+  const [selectedLocation, setSelectedLocation] = useState("ALL");
+  const [sortBy, setSortBy] = useState("NEWEST");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -55,15 +58,65 @@ const Browse = () => {
     };
   }, [location.state]);
 
-  const filteredPromotions = useMemo(() => {
-    if (!search) {
-      return promotions;
-    }
-    return promotions.filter((promo) =>
-      promo.title.toLowerCase().includes(search.toLowerCase()) ||
-      promo.businessName.toLowerCase().includes(search.toLowerCase())
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(
+      new Set(
+        promotions
+          .map((promotion) => promotion.categoryName?.trim())
+          .filter((category): category is string => Boolean(category))
+      )
     );
-  }, [promotions, search]);
+
+    return uniqueCategories.sort((first, second) => first.localeCompare(second));
+  }, [promotions]);
+
+  const locations = useMemo(() => {
+    const uniqueLocations = Array.from(
+      new Set(
+        promotions
+          .map((promotion) => promotion.location?.trim())
+          .filter((item): item is string => Boolean(item))
+      )
+    );
+
+    return uniqueLocations.sort((first, second) => first.localeCompare(second));
+  }, [promotions]);
+
+  const filteredPromotions = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    const visiblePromotions = promotions.filter((promotion) => {
+      const matchesSearch = !normalizedSearch
+        || promotion.title.toLowerCase().includes(normalizedSearch)
+        || promotion.businessName.toLowerCase().includes(normalizedSearch)
+        || promotion.description.toLowerCase().includes(normalizedSearch);
+
+      const matchesCategory = selectedCategory === "ALL" || promotion.categoryName === selectedCategory;
+      const matchesLocation = selectedLocation === "ALL" || promotion.location === selectedLocation;
+
+      return matchesSearch && matchesCategory && matchesLocation;
+    });
+
+    const sortedPromotions = [...visiblePromotions].sort((first, second) => {
+      if (sortBy === "ENDING_SOON") {
+        return new Date(first.endDate).getTime() - new Date(second.endDate).getTime();
+      }
+
+      if (sortBy === "DISCOUNT") {
+        return second.discountValue - first.discountValue;
+      }
+
+      if (sortBy === "POPULAR") {
+        const firstScore = Number(first.riskScore ?? 0);
+        const secondScore = Number(second.riskScore ?? 0);
+        return secondScore - firstScore;
+      }
+
+      return new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime();
+    });
+
+    return sortedPromotions;
+  }, [promotions, search, selectedCategory, selectedLocation, sortBy]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -92,20 +145,25 @@ const Browse = () => {
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-            <select className="h-12 px-4 rounded-md border border-input bg-background text-foreground">
-              <option>All Categories</option>
-              <option>Electronics</option>
-              <option>Groceries</option>
-              <option>Fashion</option>
-              <option>Food & Beverages</option>
-              <option>Furniture</option>
-              <option>Health & Fitness</option>
+            <select
+              className="h-12 px-4 rounded-md border border-input bg-background text-foreground"
+              value={selectedCategory}
+              onChange={(event) => setSelectedCategory(event.target.value)}
+            >
+              <option value="ALL">All Categories</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>{category}</option>
+              ))}
             </select>
-            <select className="h-12 px-4 rounded-md border border-input bg-background text-foreground">
-              <option>All Locations</option>
-              <option>Harare</option>
-              <option>Bulawayo</option>
-              <option>Gweru</option>
+            <select
+              className="h-12 px-4 rounded-md border border-input bg-background text-foreground"
+              value={selectedLocation}
+              onChange={(event) => setSelectedLocation(event.target.value)}
+            >
+              <option value="ALL">All Locations</option>
+              {locations.map((place) => (
+                <option key={place} value={place}>{place}</option>
+              ))}
             </select>
             <Button variant="outline" className="h-12">
               <SlidersHorizontal className="h-4 w-4 mr-2" />
@@ -119,11 +177,15 @@ const Browse = () => {
           <p className="text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{filteredPromotions.length}</span> verified promotions
           </p>
-          <select className="px-4 py-2 rounded-md border border-input bg-background text-foreground text-sm">
-            <option>Sort by: Newest</option>
-            <option>Sort by: Ending Soon</option>
-            <option>Sort by: Discount %</option>
-            <option>Sort by: Popular</option>
+          <select
+            className="px-4 py-2 rounded-md border border-input bg-background text-foreground text-sm"
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value)}
+          >
+            <option value="NEWEST">Sort by: Newest</option>
+            <option value="ENDING_SOON">Sort by: Ending Soon</option>
+            <option value="DISCOUNT">Sort by: Discount %</option>
+            <option value="POPULAR">Sort by: Popular</option>
           </select>
         </div>
 
