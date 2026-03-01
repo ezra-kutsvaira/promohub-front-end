@@ -9,6 +9,7 @@ import { useLocation } from "react-router-dom";
 import { api, type Promotion } from "@/lib/api";
 import { formatDate, formatDiscount } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
+import { landingPromotions } from "@/data/landing";
 import { isApprovedPromotion } from "@/lib/promotionStatus";
 
 const Browse = () => {
@@ -27,7 +28,7 @@ const Browse = () => {
         const approvedContent = content.filter(isApprovedPromotion);
 
         if (isMounted) {
-          const baseList = approvedContent;
+          const baseList = approvedContent.length > 0 ? approvedContent : landingPromotions;
           if(createdPromotion && isApprovedPromotion(createdPromotion) && !baseList.some((item) => item.id === createdPromotion.id)) {
             setPromotions([createdPromotion, ...baseList]);
           } else {
@@ -35,11 +36,11 @@ const Browse = () => {
           }
         }
       } catch (error) {
-        if (isMounted) {
-          setPromotions([]);
+        if(isMounted) {
+          setPromotions(landingPromotions);
         }
         const message = error instanceof Error ? error.message : "Unable to load promotions.";
-        toast.warning(message);
+        toast.warning(`${message} Showing featured promotions instead.`);
       } finally {
         if (isMounted) {
           setIsLoading(false);
