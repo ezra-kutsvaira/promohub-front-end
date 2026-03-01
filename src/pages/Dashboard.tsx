@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
 import { ArrowUpRight, BookmarkCheck, CalendarCheck, Megaphone, Sparkles, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -60,6 +61,8 @@ const Dashboard = () => {
   const [adminPendingPromotions, setAdminPendingPromotions] = useState<Promotion[]>([]);
   const [adminApprovedPromotions, setAdminApprovedPromotions] = useState<Promotion[]>([]);
   const [adminRejectedPromotions, setAdminRejectedPromotions] = useState<Promotion[]>([]);
+  const [moderationReasonByPromotionId, setModerationReasonByPromotionId] = useState<Record<number, string>>({});
+  const [promotionActionId, setPromotionActionId] = useState<number | null>(null);
   const location = useLocation();
 
   if (!user) {
@@ -154,6 +157,66 @@ const Dashboard = () => {
   const pendingPromotions = promotionsWithNewlyCreated.filter(isPendingPromotion);
   const approvedPromotions = promotionsWithNewlyCreated.filter(isApprovedPromotion);
   const rejectedPromotions = promotionsWithNewlyCreated.filter(isRejectedPromotion);
+
+  const isSubmittingPromotionAction = (promotionId: number) => promotionActionId === promotionId;
+
+  const handleApprovePromotion = async (promotion: Promotion) => {
+    setPromotionActionId(promotion.id);
+
+    try {
+      await api.approvePromotion(promotion.id);
+      setAdminPendingPromotions((current) => current.filter((item) => item.id !== promotion.id));
+      setAdminRejectedPromotions((current) => current.filter((item) => item.id !== promotion.id));
+      setAdminApprovedPromotions((current) => [
+        {
+          ...promotion,
+          verificationStatus: "APPROVED",
+          status: "APPROVED",
+          rejectionReason: undefined,
+        },
+        ...current,
+      ]);
+      toast.success(`Promotion "${promotion.title}" was approved and is now live.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to approve promotion.";
+      toast.error(message);
+    } finally {
+      setPromotionActionId(null);
+    }
+  };
+
+  const handleRejectPromotion = async (promotion: Promotion) => {
+    const reason = moderationReasonByPromotionId[promotion.id]?.trim();
+
+    if (!reason) {
+      toast.error("Please add a rejection reason before rejecting this promotion.");
+      return;
+    }
+
+    setPromotionActionId(promotion.id);
+
+    try {
+      await api.rejectPromotion(promotion.id, reason);
+      setAdminPendingPromotions((current) => current.filter((item) => item.id !== promotion.id));
+      setAdminApprovedPromotions((current) => current.filter((item) => item.id !== promotion.id));
+      setAdminRejectedPromotions((current) => [
+        {
+          ...promotion,
+          verificationStatus: "REJECTED",
+          status: "REJECTED",
+          rejectionReason: reason,
+        },
+        ...current,
+      ]);
+      setModerationReasonByPromotionId((current) => ({ ...current, [promotion.id]: "" }));
+      toast.success(`Promotion "${promotion.title}" was rejected.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to reject promotion.";
+      toast.error(message);
+    } finally {
+      setPromotionActionId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -404,10 +467,41 @@ const Dashboard = () => {
                       <p className="text-sm text-muted-foreground">No pending promotions at the moment.</p>
                     )}
                     {adminPendingPromotions.slice(0, 5).map((promotion) => (
-                      <div key={promotion.id} className="rounded-lg border border-border p-4">
-                        <p className="font-semibold">{promotion.title}</p>
-                        <p className="text-sm text-muted-foreground">Submitted by business #{promotion.businessId}.</p>
-                        <Badge variant="outline" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
+                      <div key={promotion.id} className="rounded-lg border border-border p-4 space-y-3">
+                        <div>
+                          <p className="font-semibold">{promotion.title}</p>
+                          <p className="text-sm text-muted-foreground">Submitted by business #{promotion.businessId}.</p>
+                          <Badge variant="outline" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
+                        </div>
+                        <Textarea
+                          value={moderationReasonByPromotionId[promotion.id] ?? ""}
+                          onChange={(event) =>
+                            setModerationReasonByPromotionId((current) => ({
+                              ...current,
+                              [promotion.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="If rejecting, provide the reason shown to the business owner."
+                          rows={3}
+                          disabled={isSubmittingPromotionAction(promotion.id)}
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleApprovePromotion(promotion)}
+                            disabled={isSubmittingPromotionAction(promotion.id)}
+                          >
+                            {isSubmittingPromotionAction(promotion.id) ? "Saving..." : "Approve & go live"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleRejectPromotion(promotion)}
+                            disabled={isSubmittingPromotionAction(promotion.id)}
+                          >
+                            {isSubmittingPromotionAction(promotion.id) ? "Saving..." : "Reject"}
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </TabsContent>
@@ -431,6 +525,7 @@ const Dashboard = () => {
                       <div key={promotion.id} className="rounded-lg border border-border p-4">
                         <p className="font-semibold">{promotion.title}</p>
                         <p className="text-sm text-muted-foreground">Rejected for business #{promotion.businessId}.</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Reason: {promotion.rejectionReason ?? promotion.verificationNotes ?? "No reason provided."}</p>
                         <Badge variant="destructive" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
                       </div>
                     ))}
