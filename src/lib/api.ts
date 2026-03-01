@@ -701,6 +701,26 @@ export const api = {
   getBusinessAnalytics: (businessId: number | string) => apiRequest<BusinessAnalytics>(`/api/analytics/business/${businessId}`),
 
   getAdminPromotions: () => apiRequest<Promotion[]>("/api/admin/promotions"),
+  approvePromotion: (id: number | string) =>
+    apiRequestWithAlternatives<void>(
+      [
+        `/api/admin/promotions/${id}/approve`,
+        `/api/admin/promotion/${id}/approve`,
+        `/api/promotions/${id}/approve`,
+        `/api/promotions/${id}/verification/approve`,
+      ],
+      { method: "POST" }
+    ),
+  rejectPromotion: (id: number | string, reason?: string) =>
+    apiRequestWithAlternatives<void>(
+      [
+        `/api/admin/promotions/${id}/reject`,
+        `/api/admin/promotion/${id}/reject`,
+        `/api/promotions/${id}/reject`,
+        `/api/promotions/${id}/verification/reject`,
+      ],
+      { method: "POST", body: JSON.stringify(reason ? { reason } : {}) }
+    ),
   getAdminPromotionsByStatus: async (requestedStatus: string, adminId?: number | string) => {
     const status = toStatusParam(requestedStatus);
     const parameterCandidates: Array<Record<string, string> | undefined> = [
