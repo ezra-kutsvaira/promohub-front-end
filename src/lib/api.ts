@@ -453,14 +453,9 @@ const getPromotionStatus = (promotion: Promotion): string =>
   toStatusParam(promotion.verificationStatus ?? promotion.status ?? "");
 
 const statusAliases: Record<string, string[]> = {
-  PENDING: ["PENDING", "SUBMITTED", "IN_REVIEW", "UNDER_REVIEW"],
-  APPROVED: ["APPROVED", "ACTIVE", "VERIFIED", "PUBLISHED"],
-  REJECTED: ["REJECTED", "DECLINED", "DENIED"],
-};
-
-const toStatusCandidates = (requestedStatus: string): string[] => {
-  const normalizedStatus = toStatusParam(requestedStatus);
-  return statusAliases[normalizedStatus] ?? [normalizedStatus];
+  PENDING: ["PENDING", "SUBMITTED"],
+  APPROVED: ["APPROVED", "ACTIVE"],
+  REJECTED: ["REJECTED"],
 };
 
 const matchesRequestedStatus = (promotion: Promotion, requestedStatus: string): boolean => {
@@ -538,8 +533,8 @@ export const api = {
     requestedStatus: string,
     ownerId?: number | string
   ) => {
-    const statusCandidates = toStatusCandidates(requestedStatus);
-    const parameterCandidates: Array<Record<string, string> | undefined> = statusCandidates.flatMap((status) => [
+    const status = toStatusParam(requestedStatus);
+    const parameterCandidates: Array<Record<string, string> | undefined> = [
       { businessId: String(businessId), verificationStatus: status },
       { businessId: String(businessId), status },
       { id: String(businessId), verificationStatus: status },
@@ -550,7 +545,7 @@ export const api = {
       ownerId === undefined ? undefined : { userId: String(ownerId), status },
       { verificationStatus: status },
       { status },
-    ]);
+    ];
 
     let lastError: unknown;
     for (const candidate of parameterCandidates) {
@@ -707,20 +702,18 @@ export const api = {
 
   getAdminPromotions: () => apiRequest<Promotion[]>("/api/admin/promotions"),
   getAdminPromotionsByStatus: async (requestedStatus: string, adminId?: number | string) => {
-    const statusCandidates = toStatusCandidates(requestedStatus);
+    const status = toStatusParam(requestedStatus);
     const parameterCandidates: Array<Record<string, string> | undefined> = [
-      ...statusCandidates.flatMap((status) => [
-        { verificationStatus: status },
-        { status },
-        adminId === undefined ? undefined : { adminId: String(adminId), verificationStatus: status },
-        adminId === undefined ? undefined : { adminId: String(adminId), status },
-        adminId === undefined ? undefined : { reviewerId: String(adminId), verificationStatus: status },
-        adminId === undefined ? undefined : { reviewerId: String(adminId), status },
-        adminId === undefined ? undefined : { userId: String(adminId), verificationStatus: status },
-        adminId === undefined ? undefined : { userId: String(adminId), status },
-        adminId === undefined ? undefined : { id: String(adminId), verificationStatus: status },
-        adminId === undefined ? undefined : { id: String(adminId), status },
-      ]),
+      { verificationStatus: status },
+      { status },
+      adminId === undefined ? undefined : { adminId: String(adminId), verificationStatus: status },
+      adminId === undefined ? undefined : { adminId: String(adminId), status },
+      adminId === undefined ? undefined : { reviewerId: String(adminId), verificationStatus: status },
+      adminId === undefined ? undefined : { reviewerId: String(adminId), status },
+      adminId === undefined ? undefined : { userId: String(adminId), verificationStatus: status },
+      adminId === undefined ? undefined : { userId: String(adminId), status },
+      adminId === undefined ? undefined : { id: String(adminId), verificationStatus: status },
+      adminId === undefined ? undefined : { id: String(adminId), status },
       undefined,
     ];
 
