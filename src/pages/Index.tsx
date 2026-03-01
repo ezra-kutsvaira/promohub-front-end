@@ -33,8 +33,7 @@ const Index = () => {
         if (isMounted) {
           const approvedPromotions = promotions.filter(isApprovedPromotion);
           const nextEvents = events.length > 0 ? events : landingEvents;
-          const promotionsForHomepage = approvedPromotions.length > 0 ? approvedPromotions : promotions;
-          setFeaturedPromotions(promotionsForHomepage.slice(0, 4));
+          setFeaturedPromotions(approvedPromotions.slice(0, 4));
           setRoadshows(nextEvents.slice(0, 3));
         }
       } catch (error) {

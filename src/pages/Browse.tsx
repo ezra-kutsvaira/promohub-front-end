@@ -27,7 +27,7 @@ const Browse = () => {
         const approvedContent = content.filter(isApprovedPromotion);
 
         if (isMounted) {
-          const baseList = approvedContent.length > 0 ? approvedContent : content;
+          const baseList = approvedContent;
           if(createdPromotion && isApprovedPromotion(createdPromotion) && !baseList.some((item) => item.id === createdPromotion.id)) {
             setPromotions([createdPromotion, ...baseList]);
           } else {
