@@ -513,10 +513,8 @@ export const api = {
         const response = await api.getBusinessPromotions(candidate);
         const promotions = toPromotionArray(response);
 
-        
         return promotions.filter((promotion) =>
           String(promotion.businessId) === String(businessId)
-         && matchesRequestedStatus(promotion, status)
         );
       } catch (error) {
         lastError = error;
@@ -703,6 +701,40 @@ export const api = {
   getBusinessAnalytics: (businessId: number | string) => apiRequest<BusinessAnalytics>(`/api/analytics/business/${businessId}`),
 
   getAdminPromotions: () => apiRequest<Promotion[]>("/api/admin/promotions"),
+  getAdminPromotionsByStatus: async (requestedStatus: string, adminId?: number | string) => {
+    const status = toStatusParam(requestedStatus);
+    const parameterCandidates: Array<Record<string, string> | undefined> = [
+      { verificationStatus: status },
+      { status },
+      adminId === undefined ? undefined : { adminId: String(adminId), verificationStatus: status },
+      adminId === undefined ? undefined : { adminId: String(adminId), status },
+      adminId === undefined ? undefined : { reviewerId: String(adminId), verificationStatus: status },
+      adminId === undefined ? undefined : { reviewerId: String(adminId), status },
+      adminId === undefined ? undefined : { userId: String(adminId), verificationStatus: status },
+      adminId === undefined ? undefined : { userId: String(adminId), status },
+      adminId === undefined ? undefined : { id: String(adminId), verificationStatus: status },
+      adminId === undefined ? undefined : { id: String(adminId), status },
+      undefined,
+    ];
+
+    let lastError: unknown;
+    for (const candidate of parameterCandidates) {
+      try {
+        const query = candidate ? `?${new URLSearchParams(candidate).toString()}` : "";
+        const promotions = await apiRequest<Promotion[]>(`/api/admin/promotions${query}`);
+
+        return promotions.filter((promotion) => matchesRequestedStatus(promotion, requestedStatus));
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to load admin promotions.");
+  },
   getAdminEvents: () => apiRequest<Event[]>("/api/admin/events"),
   getAdminBusinesses: () => apiRequest<Business[]>("/api/admin/businesses"),
   getSecurityAuditLogs: () => apiRequest<SecurityAuditLog[]>("/api/admin/security-audit-logs"),

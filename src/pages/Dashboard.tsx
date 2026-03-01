@@ -57,7 +57,9 @@ const Dashboard = () => {
   const [platformAnalytics, setPlatformAnalytics] = useState<PlatformAnalytics | null>(null);
   const [pendingPromotionsCount, setPendingPromotionsCount] = useState(0);
   const [businessPromotions, setBusinessPromotions] = useState<Promotion[]>([]);
-  const [adminPromotions, setAdminPromotions] = useState<Promotion[]>([]);
+  const [adminPendingPromotions, setAdminPendingPromotions] = useState<Promotion[]>([]);
+  const [adminApprovedPromotions, setAdminApprovedPromotions] = useState<Promotion[]>([]);
+  const [adminRejectedPromotions, setAdminRejectedPromotions] = useState<Promotion[]>([]);
   const location = useLocation();
 
   if (!user) {
@@ -101,9 +103,15 @@ const Dashboard = () => {
         }
 
         if (isAdmin) {
-           const promotions = await api.getAdminPromotions();
+          const [pendingPromotions, approvedPromotions, rejectedPromotions] = await Promise.all([
+            api.getAdminPromotionsByStatus("PENDING", user.id),
+            api.getAdminPromotionsByStatus("APPROVED", user.id),
+            api.getAdminPromotionsByStatus("REJECTED", user.id),
+          ]);
           if (!isMounted) return;
-          setAdminPromotions(promotions);
+          setAdminPendingPromotions(pendingPromotions);
+          setAdminApprovedPromotions(approvedPromotions);
+          setAdminRejectedPromotions(rejectedPromotions);
           const analytics = await api.getPlatformAnalytics();
           if (!isMounted) return;
           setPlatformAnalytics(analytics);
@@ -146,7 +154,6 @@ const Dashboard = () => {
   const pendingPromotions = promotionsWithNewlyCreated.filter(isPendingPromotion);
   const approvedPromotions = promotionsWithNewlyCreated.filter(isApprovedPromotion);
   const rejectedPromotions = promotionsWithNewlyCreated.filter(isRejectedPromotion);
-  const submittedPromotions = adminPromotions.filter(isPendingPromotion);
 
   return (
     <div className="min-h-screen bg-background">
@@ -181,7 +188,7 @@ const Dashboard = () => {
               <CardDescription>{isBusiness ? "Awaiting admin approval." : isAdmin ? "Waiting for moderation decision." : "Deals ready for redemption."}</CardDescription>
             </CardHeader>
             <CardContent className="text-3xl font-semibold">
-                {isBusiness ? pendingPromotionsCount : isAdmin ? submittedPromotions.length : savedPromotions.length}
+                {isBusiness ? pendingPromotionsCount : isAdmin ? adminPendingPromotions.length : savedPromotions.length}
             </CardContent>
           </Card>
           <Card className="border-border">
@@ -382,21 +389,54 @@ const Dashboard = () => {
           <section>
             <Card className="border-border">
               <CardHeader>
-                <CardTitle>Submitted promotions</CardTitle>
-                <CardDescription>Newest promotions awaiting admin review.</CardDescription>
+                <CardTitle>Promotion moderation queue</CardTitle>
+                <CardDescription>Review promotions by verification status.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {submittedPromotions.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No submitted promotions at the moment.</p>
-                )}
-                {submittedPromotions.slice(0, 5).map((promotion) => (
-                  <div key={promotion.id} className="rounded-lg border border-border p-4">
-                    <p className="font-semibold">{promotion.title}</p>
-                    <p className="text-sm text-muted-foreground">Submitted by business #{promotion.businessId}.</p>
-                    <Badge variant="outline" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
-                  </div>
-                ))}
-                <Button variant="outline" asChild>
+              <CardContent>
+                <Tabs defaultValue="pending" className="space-y-4">
+                  <TabsList>
+                    <TabsTrigger value="pending">Pending ({adminPendingPromotions.length})</TabsTrigger>
+                    <TabsTrigger value="approved">Approved ({adminApprovedPromotions.length})</TabsTrigger>
+                    <TabsTrigger value="rejected">Rejected ({adminRejectedPromotions.length})</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="pending" className="space-y-3">
+                    {adminPendingPromotions.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No pending promotions at the moment.</p>
+                    )}
+                    {adminPendingPromotions.slice(0, 5).map((promotion) => (
+                      <div key={promotion.id} className="rounded-lg border border-border p-4">
+                        <p className="font-semibold">{promotion.title}</p>
+                        <p className="text-sm text-muted-foreground">Submitted by business #{promotion.businessId}.</p>
+                        <Badge variant="outline" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
+                      </div>
+                    ))}
+                  </TabsContent>
+                  <TabsContent value="approved" className="space-y-3">
+                    {adminApprovedPromotions.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No approved promotions found.</p>
+                    )}
+                    {adminApprovedPromotions.slice(0, 5).map((promotion) => (
+                      <div key={promotion.id} className="rounded-lg border border-border p-4">
+                        <p className="font-semibold">{promotion.title}</p>
+                        <p className="text-sm text-muted-foreground">Approved for business #{promotion.businessId}.</p>
+                        <Badge className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
+                      </div>
+                    ))}
+                  </TabsContent>
+                  <TabsContent value="rejected" className="space-y-3">
+                    {adminRejectedPromotions.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No rejected promotions found.</p>
+                    )}
+                    {adminRejectedPromotions.slice(0, 5).map((promotion) => (
+                      <div key={promotion.id} className="rounded-lg border border-border p-4">
+                        <p className="font-semibold">{promotion.title}</p>
+                        <p className="text-sm text-muted-foreground">Rejected for business #{promotion.businessId}.</p>
+                        <Badge variant="destructive" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
+                      </div>
+                    ))}
+                  </TabsContent>
+                </Tabs>
+                <Button variant="outline" className="mt-4" asChild>
                   <Link to="/operations-console">Review all submissions</Link>
                 </Button>
               </CardContent>

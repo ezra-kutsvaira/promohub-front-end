@@ -7,13 +7,13 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api, type Event, type Promotion } from "@/lib/api";
-import { landingEvents } from "@/data/landing";
+import { landingEvents, landingPromotions } from "@/data/landing";
 import { formatDate, formatDiscount } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
 import { isApprovedPromotion } from "@/lib/promotionStatus";
 
 const Index = () => {
-  const [featuredPromotions, setFeaturedPromotions] = useState<Promotion[]>([]);
+  const [featuredPromotions, setFeaturedPromotions] = useState<Promotion[]>(landingPromotions);
   const [roadshows, setRoadshows] = useState<Event[]>(landingEvents);
 
   useEffect(() => {
@@ -32,15 +32,16 @@ const Index = () => {
 
         if (isMounted) {
           const approvedPromotions = promotions.filter(isApprovedPromotion);
+          const nextPromotions = approvedPromotions.length > 0 ? approvedPromotions : landingPromotions;
           const nextEvents = events.length > 0 ? events : landingEvents;
-          setFeaturedPromotions(approvedPromotions.slice(0, 4));
+          setFeaturedPromotions(nextPromotions.slice(0, 4));
           setRoadshows(nextEvents.slice(0, 3));
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to load homepage data.";
         toast.error(message);
         if (isMounted) {
-          setFeaturedPromotions([]);
+          setFeaturedPromotions(landingPromotions.slice(0, 4));
           setRoadshows(landingEvents.slice(0, 3));
         }
       }
