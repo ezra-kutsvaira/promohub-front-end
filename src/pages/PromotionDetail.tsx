@@ -47,7 +47,15 @@ const PromotionDetail = () => {
         await api.trackPromotionView(id);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to log promotion view.";
-        toast.info(message);
+      // toast.info(message);
+      //Suppress Warnings : Revisit
+      //const normalizedMessage = message.toLowerCase();
+      //const isNotFoundViewTrackingError =
+      //normalizedMessage.includes("not found") || normalizedMessage.includes("404");
+
+        if (!isNotFoundPromotionError (message)) {
+          toast.info(message);
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -125,6 +133,12 @@ const PromotionDetail = () => {
     }
   };
 
+  const isNotFoundPromotionError = (message: string) => {
+    const normalizedMessage = message.toLowerCase();
+    return normalizedMessage.includes("not found") || normalizedMessage.includes("404");
+  };
+
+
   const handleRedeem = async () => {
     try {
       await api.trackPromotionClick(promotion.id);
@@ -132,6 +146,9 @@ const PromotionDetail = () => {
       toast.success("Great! We logged your click and redemption intent for this promotion.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to log engagement.";
+      if (isNotFoundPromotionError(message)) {
+        return;
+      }
       toast.error(message);
     }
   };
