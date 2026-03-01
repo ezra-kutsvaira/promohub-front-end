@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
-import { ArrowUpRight, BookmarkCheck, CalendarCheck, Megaphone, Sparkles, Users } from "lucide-react";
+import { formatDate, formatDiscount } from "@/lib/format";
+import { ArrowUpRight, BookmarkCheck, CalendarCheck, MapPin, Megaphone, Sparkles, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { useEffect, useMemo, useState } from "react";
@@ -48,6 +49,89 @@ const toPromotionPage = (payload: PageResponse<Promotion> | Promotion[] | null |
     totalPages: payload.totalPages ?? 0,
     last: payload.last ?? true,
   };
+};
+
+const PromotionModerationCard = ({
+  promotion,
+  reason,
+  isSubmitting,
+  onReasonChange,
+  onApprove,
+  onReject,
+}: {
+  promotion: Promotion;
+  reason: string;
+  isSubmitting: boolean;
+  onReasonChange: (reason: string) => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) => {
+  const discountLabel = formatDiscount(promotion.discountType, promotion.discountValue);
+  const terms = promotion.termsAndConditions
+    ? promotion.termsAndConditions.split(/\n+/).map((term) => term.trim()).filter(Boolean)
+    : [];
+
+  return (
+    <Card className="border-border">
+      <CardHeader className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">{getPromotionVerificationStatus(promotion)}</Badge>
+          <Badge variant="secondary">{promotion.categoryName}</Badge>
+          <Badge className="ml-auto">{discountLabel}</Badge>
+        </div>
+        <div>
+          <CardTitle className="text-xl">{promotion.title}</CardTitle>
+          <CardDescription className="mt-1">Submitted by {promotion.businessName || `business #${promotion.businessId}`}</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">{promotion.description}</p>
+
+        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <MapPin className="h-4 w-4" />
+            {promotion.location}
+          </div>
+          <div>
+            {formatDate(promotion.startDate)} - {formatDate(promotion.endDate)}
+          </div>
+          <div>Promo code: {promotion.promoCode}</div>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium">Terms & conditions</p>
+          {terms.length > 0 ? (
+            <ul className="mt-2 space-y-1">
+              {terms.map((term, index) => (
+                <li key={`${promotion.id}-term-${index}`} className="text-sm text-muted-foreground">
+                  • {term}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">No additional terms provided.</p>
+          )}
+        </div>
+
+        <Textarea
+          value={reason}
+          onChange={(event) => onReasonChange(event.target.value)}
+          placeholder="If rejecting, provide the reason shown to the business owner."
+          rows={3}
+          disabled={isSubmitting}
+        />
+
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={onApprove} disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Approve"}
+          </Button>
+          <Button size="sm" variant="destructive" onClick={onReject} disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Reject"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 };
 
 const Dashboard = () => {
@@ -467,42 +551,20 @@ const Dashboard = () => {
                       <p className="text-sm text-muted-foreground">No pending promotions at the moment.</p>
                     )}
                     {adminPendingPromotions.slice(0, 5).map((promotion) => (
-                      <div key={promotion.id} className="rounded-lg border border-border p-4 space-y-3">
-                        <div>
-                          <p className="font-semibold">{promotion.title}</p>
-                          <p className="text-sm text-muted-foreground">Submitted by business #{promotion.businessId}.</p>
-                          <Badge variant="outline" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
-                        </div>
-                        <Textarea
-                          value={moderationReasonByPromotionId[promotion.id] ?? ""}
-                          onChange={(event) =>
-                            setModerationReasonByPromotionId((current) => ({
-                              ...current,
-                              [promotion.id]: event.target.value,
-                            }))
-                          }
-                          placeholder="If rejecting, provide the reason shown to the business owner."
-                          rows={3}
-                          disabled={isSubmittingPromotionAction(promotion.id)}
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleApprovePromotion(promotion)}
-                            disabled={isSubmittingPromotionAction(promotion.id)}
-                          >
-                            {isSubmittingPromotionAction(promotion.id) ? "Saving..." : "Approve & go live"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleRejectPromotion(promotion)}
-                            disabled={isSubmittingPromotionAction(promotion.id)}
-                          >
-                            {isSubmittingPromotionAction(promotion.id) ? "Saving..." : "Reject"}
-                          </Button>
-                        </div>
-                      </div>
+                      <PromotionModerationCard
+                        key={promotion.id}
+                        promotion={promotion}
+                        reason={moderationReasonByPromotionId[promotion.id] ?? ""}
+                        isSubmitting={isSubmittingPromotionAction(promotion.id)}
+                        onReasonChange={(reason) =>
+                          setModerationReasonByPromotionId((current) => ({
+                            ...current,
+                            [promotion.id]: reason,
+                          }))
+                        }
+                        onApprove={() => handleApprovePromotion(promotion)}
+                        onReject={() => handleRejectPromotion(promotion)}
+                      />
                     ))}
                   </TabsContent>
                   <TabsContent value="approved" className="space-y-3">
