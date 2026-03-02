@@ -18,16 +18,34 @@ const Index = () => {
 
   useEffect(() => {
     let isMounted = true;
+    const fetchApprovedPromotions = async () => {
+      const approvedQueryCandidates = [
+        { verificationStatus: "APPROVED", page: "0", size: "12" },
+        { status: "APPROVED", page: "0", size: "12" },
+      ];
+
+      for (const params of approvedQueryCandidates) {
+        try {
+          const response = await api.getPromotions(params);
+          const promotions = Array.isArray(response) ? response : response.content;
+          if (promotions.length > 0) {
+            return promotions;
+          }
+        } catch {
+          // Try the next known status parameter name.
+        }
+      }
+
+      return [] as Promotion[];
+    };
+
     const loadData = async () => {
       try {
-        const [promotionsResponse, eventsResponse] = await Promise.all([
-          api.getPromotions({ page: "0", size: "4" }),
+        const [promotions, eventsResponse] = await Promise.all([
+          fetchApprovedPromotions(),
           api.getEvents(),
         ]);
 
-        const promotions = Array.isArray(promotionsResponse)
-          ? promotionsResponse
-          : promotionsResponse.content;
         const events = Array.isArray(eventsResponse) ? eventsResponse : eventsResponse.content;
 
         if (isMounted) {
