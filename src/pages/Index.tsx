@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Shield, ShieldCheck, FileCheck, Bell, Search, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import { api, type Event, type Promotion } from "@/lib/api";
 import { landingEvents, landingPromotions } from "@/data/landing";
 import { formatDate, formatDiscount } from "@/lib/format";
@@ -13,8 +13,55 @@ import { toast } from "@/components/ui/sonner";
 import { isApprovedPromotion } from "@/lib/promotionStatus";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [featuredPromotions, setFeaturedPromotions] = useState<Promotion[]>(landingPromotions);
   const [roadshows, setRoadshows] = useState<Event[]>(landingEvents);
+  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("ALL");
+  const [selectedLocation, setSelectedLocation] = useState("ALL");
+
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(
+      new Set(
+        featuredPromotions
+          .map((promotion) => promotion.categoryName?.trim())
+          .filter((category): category is string => Boolean(category))
+      )
+    );
+
+    return uniqueCategories.sort((first, second) => first.localeCompare(second));
+  }, [featuredPromotions]);
+
+  const locations = useMemo(() => {
+    const uniqueLocations = Array.from(
+      new Set(
+        featuredPromotions
+          .map((promotion) => promotion.location?.trim())
+          .filter((item): item is string => Boolean(item))
+      )
+    );
+
+    return uniqueLocations.sort((first, second) => first.localeCompare(second));
+  }, [featuredPromotions]);
+
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    const normalizedSearch = search.trim();
+
+    if (normalizedSearch.length > 0) {
+      params.set("search", normalizedSearch);
+    }
+
+    if (selectedCategory !== "ALL") {
+      params.set("category", selectedCategory);
+    }
+
+    if (selectedLocation !== "ALL") {
+      params.set("location", selectedLocation);
+    }
+
+    navigate(`/browse${params.toString() ? `?${params.toString()}` : ""}`);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -118,22 +165,37 @@ const Index = () => {
                 <Input
                   placeholder="Search promotions..."
                   className="pl-10 h-12"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleSearch();
+                    }
+                  }}
                 />
               </div>
-              <select className="h-12 px-4 rounded-md border border-input bg-background text-foreground">
-                <option>All Categories</option>
-                <option>Electronics</option>
-                <option>Groceries</option>
-                <option>Fashion</option>
-                <option>Food & Beverages</option>
+              <select
+                className="h-12 px-4 rounded-md border border-input bg-background text-foreground"
+                value={selectedCategory}
+                onChange={(event) => setSelectedCategory(event.target.value)}
+              >
+                <option value="ALL">All Categories</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
               </select>
-              <select className="h-12 px-4 rounded-md border border-input bg-background text-foreground">
-                <option>All Locations</option>
-                <option>Harare</option>
-                <option>Bulawayo</option>
-                <option>Gweru</option>
+              <select
+                className="h-12 px-4 rounded-md border border-input bg-background text-foreground"
+                value={selectedLocation}
+                onChange={(event) => setSelectedLocation(event.target.value)}
+              >
+                <option value="ALL">All Locations</option>
+                {locations.map((place) => (
+                  <option key={place} value={place}>{place}</option>
+                ))}
               </select>
-              <Button className="h-12 px-8">Search</Button>
+              <Button className="h-12 px-8" onClick={handleSearch}>Search</Button>
             </div>
           </div>
         </div>
