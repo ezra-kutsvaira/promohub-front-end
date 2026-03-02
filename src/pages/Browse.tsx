@@ -23,10 +23,32 @@ const Browse = () => {
 
   useEffect(() => {
     let isMounted = true;
+
+    const fetchApprovedPromotions = async () => {
+      const approvedQueryCandidates = [
+        { verificationStatus: "APPROVED", page: "0", size: "60" },
+        { status: "APPROVED", page: "0", size: "60" },
+      ];
+
+      for (const params of approvedQueryCandidates) {
+        try {
+          const response = await api.getPromotions(params);
+          const promotions = Array.isArray(response) ? response : response.content;
+          if (promotions.length > 0) {
+            return promotions;
+          }
+        } catch {
+          // Try the next known status parameter name.
+        }
+      }
+
+      const response = await api.getPromotions();
+      return Array.isArray(response) ? response : response.content;
+    };
+
     const loadPromotions = async () => {
       try {
-        const response = await api.getPromotions();
-        const content = Array.isArray(response) ? response : response.content;
+        const content = await fetchApprovedPromotions();
         const createdPromotion = (location.state as {createdPromotion?: Promotion } | null)?.createdPromotion;
         const approvedContent = content.filter(isApprovedPromotion);
 
