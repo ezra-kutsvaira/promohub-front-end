@@ -22,6 +22,17 @@ const Browse = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const searchQuery = params.get("search")?.trim() ?? "";
+    const categoryQuery = params.get("category")?.trim() ?? "";
+    const locationQuery = params.get("location")?.trim() ?? "";
+
+    setSearch(searchQuery);
+    setSelectedCategory(categoryQuery || "ALL");
+    setSelectedLocation(locationQuery || "ALL");
+  }, [location.search]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const fetchApprovedPromotions = async () => {
