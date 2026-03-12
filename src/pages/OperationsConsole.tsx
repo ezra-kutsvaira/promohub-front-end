@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { Navbar } from "@/components/Navbar";
@@ -42,19 +42,19 @@ const PENDING_STATUSES = new Set(["PENDING", "IN_REVIEW", "SUBMITTED"]);
 const REQUESTED_MORE_DOCS_STATUSES = new Set(["MORE_DOCUMENTS_REQUESTED", "ADDITIONAL_DOCUMENTS_REQUIRED"]);
 
 //Helper used to safely inspect unknown response payloads without sacrificing runtime safety
-const isRecord = (value: unknown): value is Record <string, unknown> =>
+const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const formalStatusLabel = (status: string) =>
+const formatStatusLabel = (status: string) =>
   status
     .toLowerCase()
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
 
-const formatDateTime = (value?: string )=> {
+const formatDateTime = (value?: string) => {
   if (!value) return "-";
   const date = new Date(value);
-  return  date.toLocaleString();
+  return date.toLocaleString();
 };
 
 const extractHistoryFromReview = (review: BusinessVerificationReview | null): ReviewerHistoryItem[] => {
@@ -66,22 +66,21 @@ const extractHistoryFromReview = (review: BusinessVerificationReview | null): Re
     ?? reviewAsRecord.reviewerHistory
     ?? reviewAsRecord.notesHistory
     ?? [];
-     if (!Array.isArray(rawHistory)) return [];
-};
+  if (!Array.isArray(rawHistory)) return [];
 
- return rawHistory
- .map((entry, index) => {
-  if (!isRecord(entry)) {
-    return null;
+  return rawHistory
+    .map((entry, index) => {
+      if (!isRecord(entry)) {
+        return null;
+      }
 
-  const createdAt = typeof entry.createdAt === "string"
+      const createdAt = typeof entry.createdAt === "string"
         ? entry.createdAt
         : typeof entry.timestamp === "string"
           ? entry.timestamp
           : "";
-  
- 
-    return {
+
+      return {
         id: String(entry.id ?? `history-${index}`),
         status: typeof entry.status === "string" ? entry.status : "NOTE",
         note: String(entry.note ?? entry.message ?? entry.reason ?? "No note supplied."),
@@ -90,6 +89,7 @@ const extractHistoryFromReview = (review: BusinessVerificationReview | null): Re
       } satisfies ReviewerHistoryItem;
     })
     .filter((entry): entry is ReviewerHistoryItem => Boolean(entry));
+};
 
 
 
@@ -122,7 +122,7 @@ const OperationsConsole = () => {
   /**
    * Pulls admin business queue + review payloads and shapes them for the UI table/detail view.
    */
-  const loadQueue = async () => {
+  const loadQueue = useCallback(async () => {
     setIsLoadingQueue(true);
 
     try {
@@ -170,12 +170,12 @@ const OperationsConsole = () => {
       setIsLoadingQueue(false);
     }
 
-  };
+  }, [selectedBusinessId]);
 
   // Initial fetch of admin queue data.
   useEffect(() => {
     void loadQueue();
-  }, []);
+  }, [loadQueue]);
 
   const selectedQueueItem = useMemo(
     () => queueItems.find((item) => item.business.id === selectedBusinessId) ?? null,
