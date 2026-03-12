@@ -57,7 +57,7 @@ export const Navbar = () => {
                   </Link>
                 )}
                 {user?.role === "ADMIN" && (
-                  <Link to="/operations-console" className="text-foreground hover:text-primary transition-colors">
+                  <Link to="/admin/business-verification" className="text-foreground hover:text-primary transition-colors">
                     Operations
                   </Link>
                 )}
@@ -104,7 +104,7 @@ export const Navbar = () => {
                     </DropdownMenuItem>
                     {user?.role === "ADMIN" && (
                       <DropdownMenuItem asChild>
-                        <Link to="/operations-console">Operations console</Link>
+                        <Link to="/admin/business-verification">Operations console</Link>
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
@@ -203,11 +203,11 @@ export const Navbar = () => {
                   )}
                   {user?.role === "ADMIN" && (
                     <Link
-                      to="/operations-console"
+                      to="/admin/business-verification"
                       className="text-foreground hover:text-primary transition-colors py-2"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      Operations
+                      Verification queue
                     </Link>
                   )}
                 </>

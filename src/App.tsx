@@ -15,7 +15,7 @@ import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import SavedPromotions from "./pages/SavedPromotions";
 import AccountSettings from "./pages/AccountSettings";
-import OperationsConsole from "./pages/OperationsConsole";
+import AdminBusinessVerification from "./pages/OperationsConsole";
 import CreatePromotion from "./pages/CreatePromotion";
 import { RequireAuth, RequireRole } from "./components/RouteGuard";
 
@@ -76,11 +76,22 @@ const App = () => {
             />
           
             <Route
+              path="/admin/business-verification"
+              element={
+                <RequireAuth>
+                  <RequireRole allowed={["ADMIN"]}>
+                    <AdminBusinessVerification />
+                  </RequireRole>
+                </RequireAuth>
+              }
+            /> 
+
+            <Route
               path="/operations-console"
               element={
                 <RequireAuth>
                   <RequireRole allowed={["ADMIN"]}>
-                    <OperationsConsole />
+                    <AdminBusinessVerification />
                   </RequireRole>
                 </RequireAuth>
               }
