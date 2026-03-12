@@ -1,272 +1,551 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { toast } from "@/components/ui/sonner";
 import { Navbar } from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api";
-import { useState } from "react";
-import { toast } from "@/components/ui/sonner";
+import {api, type Business, type BusinessVerificationReview } from "@/lib/api";
 
-type OperationRecord = Record<string, unknown>;
-type OperationData = {
-  action: string;
-  value: unknown;
+type ReviewAction = "APPROVED" | "REJECTED" | "MORE_DOCUMENTS_REQUESTED";
+
+type ReviewerHistoryItem = {
+  id: string;
+  status: string;
+  note: string;
+  actor: string;
+  createdAt: string;
 };
 
-const statusLabels = ["PENDING", "APPROVED", "REJECTED", "ACTIVE", "RESOLVED", "OPEN"];
+type QueueStatusFilter = "ALL" | "PENDING" | "MORE_DOCUMENTS_REQUESTED";
 
-const isRecord = (value: unknown): value is OperationRecord =>
+type QueueItem = {
+  business: Business;
+  review: BusinessVerificationReview | null;
+  history: ReviewerHistoryItem[];
+};
+
+const PENDING_STATUSES = new Set(["PENDING", "IN_REVIEW", "SUBMITTED"]);
+const REQUESTED_MORE_DOCS_STATUSES = new Set(["MORE_DOCUMENTS_REQUESTED", "ADDITIONAL_DOCUMENTS_REQUIRED"]);
+
+//Helper used to safely inspect unknown response payloads without sacrificing runtime safety
+const isRecord = (value: unknown): value is Record <string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const toTitle = (label: string) =>
-  label
+const formalStatusLabel = (status: string) =>
+  status
     .toLowerCase()
     .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 
-const formatValue = (value: unknown) => {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number") return value.toLocaleString();
-  if (typeof value !== "string") return JSON.stringify(value);
-
-  const maybeDate = new Date(value);
-  if (!Number.isNaN(maybeDate.getTime()) && /\d{4}-\d{2}-\d{2}/.test(value)) {
-    return maybeDate.toLocaleString();
-  }
-  return value;
+const formatDateTime = (value?: string )=> {
+  if (!value) return "-";
+  const date = new Date(value);
+  return  date.toLocaleString();
 };
 
-const unwrapListPayload = (value: unknown): OperationRecord[] => {
-  if (Array.isArray(value)) {
-    return value.filter(isRecord);
-  }
-  if (isRecord(value) && Array.isArray(value.content)) {
-    return value.content.filter(isRecord);
-  }
-  return [];
+const extractHistoryFromReview = (review: BusinessVerificationReview | null): ReviewerHistoryItem[] => {
+  if (!review) return [];
+
+  const reviewAsRecord = review as unknown as Record<string, unknown>;
+  const rawHistory =
+    reviewAsRecord.reviewHistory
+    ?? reviewAsRecord.reviewerHistory
+    ?? reviewAsRecord.notesHistory
+    ?? [];
+     if (!Array.isArray(rawHistory)) return [];
 };
 
-const getRecordStatus = (item: OperationRecord): string | null => {
-  const raw = item.verificationStatus ?? item.status;
-  if (typeof raw !== "string") return null;
-  return raw.toUpperCase();
+ return rawHistory
+ .map((entry, index) => {
+  if (!isRecord(entry)) {
+    return null;
+
+  const createdAt = typeof entry.createdAt === "string"
+        ? entry.createdAt
+        : typeof entry.timestamp === "string"
+          ? entry.timestamp
+          : "";
+  
+ 
+    return {
+        id: String(entry.id ?? `history-${index}`),
+        status: typeof entry.status === "string" ? entry.status : "NOTE",
+        note: String(entry.note ?? entry.message ?? entry.reason ?? "No note supplied."),
+        actor: String(entry.actorName ?? entry.reviewerName ?? entry.createdBy ?? "System"),
+        createdAt,
+      } satisfies ReviewerHistoryItem;
+    })
+    .filter((entry): entry is ReviewerHistoryItem => Boolean(entry));
+
+
+
+const matchesQueueFilter = (status: string, filter: QueueStatusFilter) => {
+  if (filter === "ALL") return true;
+  if (filter === "PENDING") return PENDING_STATUSES.has(status);
+  return REQUESTED_MORE_DOCS_STATUSES.has(status);
 };
 
-const ResultsTable = ({ rows }: { rows: OperationRecord[] }) => {
-  if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No records found for this filter.</p>;
-  }
 
-  return (
-    <div className="space-y-3">
-      {rows.map((row, index) => {
-        const label = String(row.title ?? row.businessName ?? row.fullName ?? row.id ?? `Result ${index + 1}`);
-        const status = getRecordStatus(row);
-        return (
-          <Card key={String(row.id ?? index)}>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-3">
-                <CardTitle className="text-base">{label}</CardTitle>
-                {status && <Badge variant="secondary">{toTitle(status)}</Badge>}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-                {Object.entries(row).map(([key, cell]) => (
-                  <div key={key} className="space-y-1">
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">{toTitle(key)}</dt>
-                    <dd className="text-sm break-words">{formatValue(cell)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
-};
-
-const ResultRenderer = ({ data }: { data: OperationData | null }) => {
-  if (!data) {
-    return <p className="text-sm text-muted-foreground">No actions run yet.</p>;
-  }
-
-  const rows = unwrapListPayload(data.value);
-  const isList = rows.length > 0;
-  const statuses = Array.from(
-    new Set(rows.map(getRecordStatus).filter((item): item is string => Boolean(item)))
-  );
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-md border bg-muted/40 p-3 text-sm">
-        <span className="font-medium">Last action:</span> {data.action}
-      </div>
-
-      {isList ? (
-        statuses.length > 0 ? (
-          <Tabs defaultValue="ALL" className="space-y-4">
-            <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent p-0">
-              <TabsTrigger value="ALL">All ({rows.length})</TabsTrigger>
-              {statusLabels
-                .filter((status) => statuses.includes(status))
-                .map((status) => {
-                  const count = rows.filter((row) => getRecordStatus(row) === status).length;
-                  return (
-                    <TabsTrigger key={status} value={status}>
-                      {toTitle(status)} ({count})
-                    </TabsTrigger>
-                  );
-                })}
-              {statuses
-                .filter((status) => !statusLabels.includes(status))
-                .map((status) => {
-                  const count = rows.filter((row) => getRecordStatus(row) === status).length;
-                  return (
-                    <TabsTrigger key={status} value={status}>
-                      {toTitle(status)} ({count})
-                    </TabsTrigger>
-                  );
-                })}
-            </TabsList>
-
-            <TabsContent value="ALL"><ResultsTable rows={rows} /></TabsContent>
-            {statuses.map((status) => (
-              <TabsContent key={status} value={status}>
-                <ResultsTable rows={rows.filter((row) => getRecordStatus(row) === status)} />
-              </TabsContent>
-            ))}
-          </Tabs>
-        ) : (
-          <ResultsTable rows={rows} />
-        )
-      ) : isRecord(data.value) ? (
-        <ResultsTable rows={[data.value]} />
-      ) : (
-        <pre className="text-xs bg-muted p-4 rounded-md overflow-auto">{JSON.stringify(data.value ?? { success: true }, null, 2)}</pre>
-      )}
-    </div>
-  );
-};
-
-const execute = async (action: () => Promise<unknown>, onResult: (value: unknown) => void) => {
-  try {
-    const result = await action();
-    onResult(result);
-    toast.success("Request completed successfully.");
-  } catch (error) {
-    toast.error(error instanceof Error ? error.message : "Request failed");
-  }
-};
 
 const OperationsConsole = () => {
-  const [output, setOutput] = useState<OperationData | null>(null);
-  const [email, setEmail] = useState("");
-  const [passwordToken, setPasswordToken] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [id, setId] = useState("");
-  const [secondaryId, setSecondaryId] = useState("");
-  const [notes, setNotes] = useState("");
+  // Search/filter state for the queue table.
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<QueueStatusFilter>("PENDING");
 
-  const toId = () => Number(id);
+  // Selection state: which business is currently being reviewed in the detail panel.
+  const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(null);
 
-  const show = (action: string, value: unknown) => {
-    setOutput({ action, value: value ?? { success: true } });
+  // Form state for each explicit admin action.
+  const [approveNote, setApproveNote] = useState("");
+  const [rejectNote, setRejectNote] = useState("");
+  const [requestDocsNote, setRequestDocsNote] = useState("");
+
+  // Data and UX state (loading + submission locks).
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+  const [isLoadingQueue, setIsLoadingQueue] = useState(true);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+
+  /**
+   * Pulls admin business queue + review payloads and shapes them for the UI table/detail view.
+   */
+  const loadQueue = async () => {
+    setIsLoadingQueue(true);
+
+    try {
+      const businesses = await api.getAdminBusinesses();
+
+      const businessesWithReviews = await Promise.all(
+        businesses.map(async (business) => {
+          try {
+            // We intentionally use the business id because this backend already resolves review by id in other admin flows.
+            const review = await api.getBusinessVerification(business.id);
+            return {
+              business,
+              review,
+              history: extractHistoryFromReview(review),
+            } satisfies QueueItem;
+          } catch {
+            return {
+              business,
+              review: null,
+              history: [],
+            } satisfies QueueItem;
+          }
+        })
+      );
+
+      // Keep only businesses that are still in a verification workflow stage.
+      const pendingQueue = businessesWithReviews.filter((item) => {
+        const normalizedStatus = String(
+          item.review?.status ?? item.business.businessVerificationStatus ?? ""
+        ).toUpperCase();
+        return PENDING_STATUSES.has(normalizedStatus)
+          || REQUESTED_MORE_DOCS_STATUSES.has(normalizedStatus);
+      });
+
+      setQueueItems(pendingQueue);
+
+      // Auto-select the first row on first load if nothing is currently selected.
+      if (pendingQueue.length > 0 && selectedBusinessId === null) {
+        setSelectedBusinessId(pendingQueue[0].business.id);
+      }
+    } catch (error) {
+      console.error("Unable to load admin verification queue", error);
+      toast.error("Unable to load verification queue.");
+    } finally {
+      setIsLoadingQueue(false);
+    }
+
   };
 
-  const runAction = (label: string, action: () => Promise<unknown>) => execute(action, (value) => show(label, value));
+  // Initial fetch of admin queue data.
+  useEffect(() => {
+    void loadQueue();
+  }, []);
+
+  const selectedQueueItem = useMemo(
+    () => queueItems.find((item) => item.business.id === selectedBusinessId) ?? null,
+    [queueItems, selectedBusinessId]
+  );
+
+  const filteredQueueItems = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return queueItems.filter((item) => {
+      const normalizedStatus = String(
+        item.review?.status ?? item.business.businessVerificationStatus ?? ""
+      ).toUpperCase();
+
+      if (!matchesQueueFilter(normalizedStatus, statusFilter)) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const searchableText = [
+        item.business.businessName,
+        item.business.ownerName,
+        item.business.contactEmail,
+        item.business.city,
+        item.business.country,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(normalizedSearch);
+    });
+  }, [queueItems, searchTerm, statusFilter]);
+
+  /**
+   * Shared action runner for approve/reject/request-documents buttons.
+   * It executes backend action, updates local reviewer history, and refreshes queue rows.
+   */
+  const runReviewAction = async (action: ReviewAction, note: string) => {
+    if (!selectedQueueItem) {
+      toast.error("Select a business before running an action.");
+      return;
+    }
+
+    if (!note.trim()) {
+      toast.error("Please provide a reviewer note.");
+      return;
+    }
+
+    setIsSubmittingAction(true);
+
+    try {
+      if (action === "APPROVED") {
+        await api.approveBusinessVerification(selectedQueueItem.business.id, note.trim());
+      }
+
+      if (action === "REJECTED") {
+        await api.rejectBusinessVerification(selectedQueueItem.business.id, note.trim());
+      }
+
+      if (action === "MORE_DOCUMENTS_REQUESTED") {
+        await api.requestAdditionalBusinessVerificationDocuments(selectedQueueItem.business.id, note.trim());
+      }
+
+      // Append a local timeline entry so the reviewer gets instant feedback before server refresh settles.
+      setQueueItems((previous) => previous.map((item) => {
+        if (item.business.id !== selectedQueueItem.business.id) {
+          return item;
+        }
+
+        const updatedStatus = action;
+        const localHistoryItem: ReviewerHistoryItem = {
+          id: `local-${Date.now()}`,
+          status: updatedStatus,
+          note: note.trim(),
+          actor: "You",
+          createdAt: new Date().toISOString(),
+        };
+
+        return {
+          ...item,
+          review: item.review
+            ? {
+                ...item.review,
+                status: updatedStatus,
+              }
+            : {
+                id: item.business.id,
+                businessId: item.business.id,
+                status: updatedStatus,
+                submittedAt: item.business.createdAt,
+              },
+          history: [localHistoryItem, ...item.history],
+        };
+      }));
+
+      setApproveNote("");
+      setRejectNote("");
+      setRequestDocsNote("");
+
+      toast.success(`Verification ${formatStatusLabel(action)}.`);
+      await loadQueue();
+    } catch (error) {
+      console.error("Unable to submit verification action", error);
+      toast.error("Unable to complete that action.");
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Operations Console</h1>
-          <p className="text-muted-foreground">Directly invoke all backend endpoints needed for end-to-end testing.</p>
+       <main className="container mx-auto px-4 py-10 space-y-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold">Admin Business Verification</h1>
+          <p className="text-muted-foreground max-w-3xl">
+            Review pending business applications, inspect supporting documents, and take a clear action for each case.
+          </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Shared Inputs</CardTitle>
-            <CardDescription>Provide values once and reuse across actions.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2"><Label>Email</Label><Input value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-            <div className="space-y-2"><Label>Primary ID</Label><Input value={id} onChange={(e) => setId(e.target.value)} placeholder="User/Business/Promotion/Event/Report ID" /></div>
-            <div className="space-y-2"><Label>Secondary ID</Label><Input value={secondaryId} onChange={(e) => setSecondaryId(e.target.value)} placeholder="Notification or subscription ID" /></div>
-            <div className="space-y-2"><Label>Password reset token / MFA code</Label><Input value={passwordToken} onChange={(e) => setPasswordToken(e.target.value)} /></div>
-            <div className="space-y-2"><Label>New password</Label><Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /></div>
-            <div className="space-y-2 md:col-span-2"><Label>Notes / reason</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
-          </CardContent>
-        </Card>
+       <div className="grid gap-6 xl:grid-cols-[1.15fr_1fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Verification Queue</CardTitle>
+              <CardDescription>
+                Filter by status and search for a specific business before opening the review panel.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
+                <div className="space-y-2">
+                  <Label htmlFor="queue-search">Search businesses</Label>
+                  <Input
+                    id="queue-search"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Business name, owner, email, or location"
+                  />
+                </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card><CardHeader><CardTitle>Auth + MFA</CardTitle></CardHeader><CardContent className="space-y-2">
-            <Button className="w-full" variant="outline" onClick={() => runAction("Request password reset", () => api.requestPasswordReset(email))}>Request password reset</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Confirm password reset", () => api.confirmPasswordReset({ token: passwordToken, newPassword, confirmNewPassword: newPassword }))}>Confirm password reset</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Setup MFA", () => api.setupMfa())}>Setup MFA</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Enable MFA", () => api.enableMfa(passwordToken))}>Enable MFA</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Disable MFA", () => api.disableMfa(passwordToken))}>Disable MFA</Button>
-          </CardContent></Card>
+                <div className="space-y-2">
+                  <Label>Queue tab</Label>
+                  <Tabs
+                    value={statusFilter}
+                    onValueChange={(value) => setStatusFilter(value as QueueStatusFilter)}
+                  >
+                    <TabsList className="grid grid-cols-3">
+                      <TabsTrigger value="ALL">All</TabsTrigger>
+                      <TabsTrigger value="PENDING">Pending</TabsTrigger>
+                      <TabsTrigger value="MORE_DOCUMENTS_REQUESTED">Docs requested</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+              </div>
 
-          <Card><CardHeader><CardTitle>User management</CardTitle></CardHeader><CardContent className="space-y-2">
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get user by id", () => api.getUser(toId()))}>GET user by id</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get user by email", () => api.getUserByEmail(email))}>GET user by email</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get users", () => api.getUsers())}>GET users</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Verify user", () => api.verifyUser(toId()))}>Verify user</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Delete user", () => api.deleteUser(toId()))}>Delete user</Button>
-          </CardContent></Card>
+              <div className="rounded-md border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Business</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Submitted</TableHead>
+                      <TableHead>Contact</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoadingQueue && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                          Loading verification queue...
+                        </TableCell>
+                      </TableRow>
+                    )}
 
-          <Card><CardHeader><CardTitle>Business + verification</CardTitle></CardHeader><CardContent className="space-y-2">
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get business by id", () => api.getBusiness(toId()))}>GET business by id</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get businesses", () => api.getBusinesses())}>GET businesses</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Delete business", () => api.deleteBusiness(toId()))}>Delete business</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get verification by id", () => api.getBusinessVerification(toId()))}>GET verification by id</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Approve verification", () => api.approveBusinessVerification(toId()))}>Approve verification</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Reject verification", () => api.rejectBusinessVerification(toId(), notes))}>Reject verification</Button>
-          </CardContent></Card>
+                    {!isLoadingQueue && filteredQueueItems.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                          No businesses match your current filters.
+                        </TableCell>
+                      </TableRow>
+                    )}
 
-          <Card><CardHeader><CardTitle>Promotion management</CardTitle></CardHeader><CardContent className="space-y-2">
-            <Button className="w-full" variant="outline" onClick={() => runAction("Create promotion", () => api.createPromotion({ businessId: toId(), categoryId: 1, title: "Test promotion", description: notes || "Smoke test", imageUrl: "", startDate: new Date().toISOString(), endDate: new Date(Date.now() + 86400000).toISOString(), promoCode: "SMOKE", discountType: "PERCENTAGE", discountValue: 10, termsAndConditions: "Test", location: "Harare" }))}>Create promotion</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Update promotion", () => api.updatePromotion(toId(), { businessId: toId(), categoryId: 1, title: "Updated promotion", description: notes || "Updated", imageUrl: "", startDate: new Date().toISOString(), endDate: new Date(Date.now() + 172800000).toISOString(), promoCode: "SMOKE2", discountType: "PERCENTAGE", discountValue: 15, termsAndConditions: "Updated", location: "Harare" }))}>Update promotion</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Delete promotion", () => api.deletePromotion(toId()))}>Delete promotion</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get promotion engagement", () => api.getPromotionEngagement(toId()))}>GET promotion engagement</Button>
-          </CardContent></Card>
+                    {!isLoadingQueue && filteredQueueItems.map((item) => {
+                      const status = String(item.review?.status ?? item.business.businessVerificationStatus ?? "PENDING").toUpperCase();
+                      const isSelected = selectedBusinessId === item.business.id;
 
-          <Card><CardHeader><CardTitle>Events + reports + analytics</CardTitle></CardHeader><CardContent className="space-y-2">
-            <Button className="w-full" variant="outline" onClick={() => runAction("Create event", () => api.createEvent({ businessId: toId(), title: "Test event", description: notes || "Smoke test", location: "Bulawayo", startDate: new Date().toISOString(), endDate: new Date(Date.now() + 86400000).toISOString(), perks: "Perks" }))}>Create event</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Update event", () => api.updateEvent(toId(), { businessId: toId(), title: "Updated event", description: notes || "Updated", location: "Bulawayo", startDate: new Date().toISOString(), endDate: new Date(Date.now() + 172800000).toISOString(), perks: "Perks" }))}>Update event</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Delete event", () => api.deleteEvent(toId()))}>Delete event</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get report by id", () => api.getReport(toId()))}>GET report by id</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get reports", () => api.getReports())}>GET reports</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Resolve report", () => api.resolveReport(toId(), notes))}>Resolve report</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get business analytics", () => api.getBusinessAnalytics(toId()))}>GET business analytics</Button>
-          </CardContent></Card>
+                      return (
+                        <TableRow
+                          key={item.business.id}
+                          className={isSelected ? "bg-muted/60" : "cursor-pointer"}
+                          onClick={() => setSelectedBusinessId(item.business.id)}
+                        >
+                          <TableCell>
+                            <p className="font-medium">{item.business.businessName}</p>
+                            <p className="text-xs text-muted-foreground">Owner: {item.business.ownerName}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{formatStatusLabel(status)}</Badge>
+                          </TableCell>
+                          <TableCell>{formatDateTime(item.review?.submittedAt ?? item.business.createdAt)}</TableCell>
+                          <TableCell>{item.business.contactEmail}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
 
-          <Card><CardHeader><CardTitle>Notifications + admin modules</CardTitle></CardHeader><CardContent className="space-y-2">
-            <Button className="w-full" variant="outline" onClick={() => runAction("Mark notification read", () => api.markNotificationRead(secondaryId))}>Mark notification read</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Create subscription", () => api.createNotificationSubscription({ channel: "EMAIL", destination: email }))}>Create subscription</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Delete subscription", () => api.deleteNotificationSubscription(secondaryId))}>Delete subscription</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Get subscriptions", () => api.getNotificationSubscriptions())}>GET subscriptions</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Admin promotions review", () => api.getAdminPromotions())}>Admin promotions review</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Admin events review", () => api.getAdminEvents())}>Admin events review</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Admin businesses review", () => api.getAdminBusinesses())}>Admin businesses review</Button>
-            <Button className="w-full" variant="outline" onClick={() => runAction("Security audit logs", () => api.getSecurityAuditLogs())}>Security audit logs</Button>
-          </CardContent></Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Review Details</CardTitle>
+              <CardDescription>
+                Inspect documents and complete one explicit action with reviewer notes.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-5">
+              {!selectedQueueItem && (
+                <p className="text-sm text-muted-foreground">
+                  Select a business from the queue to start reviewing.
+                </p>
+              )}
+
+              {selectedQueueItem && (
+                <>
+                  <div className="space-y-1">
+                    <h2 className="text-xl font-semibold">{selectedQueueItem.business.businessName}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedQueueItem.business.city}, {selectedQueueItem.business.country} · {selectedQueueItem.business.contactEmail}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">VAT number</p>
+                      <p className="font-medium">{selectedQueueItem.review?.vatNumber ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">TIN number</p>
+                      <p className="font-medium">{selectedQueueItem.review?.tinNumber ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Owner national ID</p>
+                      <p className="font-medium">{selectedQueueItem.review?.ownerNationalId ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Submitted</p>
+                      <p className="font-medium">{formatDateTime(selectedQueueItem.review?.submittedAt ?? selectedQueueItem.business.createdAt)}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border p-3 bg-muted/25">
+                    <p className="text-sm font-medium mb-2">Supporting documents preview</p>
+                    {selectedQueueItem.review?.supportingDocumentsUrl ? (
+                      <div className="space-y-2">
+                        <a
+                          href={selectedQueueItem.review.supportingDocumentsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary underline break-all text-sm"
+                        >
+                          {selectedQueueItem.review.supportingDocumentsUrl}
+                        </a>
+                        <p className="text-xs text-muted-foreground">
+                          Open link in a new tab to inspect uploaded files.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No supporting documents were included.</p>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="approve-note">Approve · reviewer note</Label>
+                      <Textarea
+                        id="approve-note"
+                        value={approveNote}
+                        onChange={(event) => setApproveNote(event.target.value)}
+                        placeholder="Explain why this business is approved."
+                        rows={3}
+                      />
+                      <Button
+                        className="w-full"
+                        disabled={isSubmittingAction}
+                        onClick={() => void runReviewAction("APPROVED", approveNote)}
+                      >
+                        Approve Business
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="reject-note">Reject · reviewer note</Label>
+                      <Textarea
+                        id="reject-note"
+                        value={rejectNote}
+                        onChange={(event) => setRejectNote(event.target.value)}
+                        placeholder="Describe rejection reason and next steps."
+                        rows={3}
+                      />
+                      <Button
+                        variant="destructive"
+                        className="w-full"
+                        disabled={isSubmittingAction}
+                        onClick={() => void runReviewAction("REJECTED", rejectNote)}
+                      >
+                        Reject Business
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="request-docs-note">Request more documents · reviewer note</Label>
+                      <Textarea
+                        id="request-docs-note"
+                        value={requestDocsNote}
+                        onChange={(event) => setRequestDocsNote(event.target.value)}
+                        placeholder="List exactly which files are still required."
+                        rows={3}
+                      />
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        disabled={isSubmittingAction}
+                        onClick={() => void runReviewAction("MORE_DOCUMENTS_REQUESTED", requestDocsNote)}
+                      >
+                        Request More Documents
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <h3 className="text-base font-semibold">Reviewer notes history</h3>
+                    {selectedQueueItem.history.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No reviewer history available yet.</p>
+                    )}
+                    {selectedQueueItem.history.length > 0 && (
+                      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        {selectedQueueItem.history.map((entry) => (
+                          <div key={entry.id} className="rounded-md border p-3 text-sm">
+                            <div className="flex items-center justify-between gap-3">
+                              <Badge variant="outline">{formatStatusLabel(entry.status)}</Badge>
+                              <span className="text-xs text-muted-foreground">{formatDateTime(entry.createdAt)}</span>
+                            </div>
+                            <p className="mt-2">{entry.note}</p>
+                            <p className="text-xs text-muted-foreground mt-1">By {entry.actor}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Response output</CardTitle>
-            <CardDescription>Results are grouped and formatted for easy review instead of raw JSON.</CardDescription>
-          </CardHeader>
-          <CardContent><ResultRenderer data={output} /></CardContent>
-        </Card>
+        
+        <p className="text-xs text-muted-foreground">
+          Legacy operations tools are deprecated. This page is now the dedicated workflow for business verification.
+          <Link to="/dashboard" className="text-primary underline ml-1">Return to dashboard</Link>
+        </p>
+        
       </main>
     </div>
   );

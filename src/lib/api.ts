@@ -681,16 +681,29 @@ export const api = {
     `/api/business-verification/${id}`,
     `/api/business-verifications/${id}`
   ),
-  approveBusinessVerification: (id: number | string) => apiRequestWithFallback<void>(
+  approveBusinessVerification: (id: number | string, note?: string) => apiRequestWithFallback<void>(
     `/api/business-verification/${id}/approve`,
     `/api/business-verifications/${id}/approve`,
-    { method: "POST" }
+    { method: "POST", body: JSON.stringify(note ? { note } : {}) }
   ),
   rejectBusinessVerification: (id: number | string, reason?: string) => apiRequestWithFallback<void>(
     `/api/business-verification/${id}/reject`,
     `/api/business-verifications/${id}/reject`,
     { method: "POST", body: JSON.stringify(reason ? { reason } : {}) }
   ),
+
+  //a code block for requesting additional business documents
+  requestAdditionalBusinessVerificationDocuments: (id: number | string, note: string) =>
+    apiRequestWithAlternatives<void>(
+      [
+        `/api/business-verification/${id}/request-documents`,
+        `/api/business-verifications/${id}/request-documents`,
+        `/api/business-verification/${id}/additional-documents`,
+        `/api/business-verifications/${id}/additional-documents`, 
+      ], 
+       { method: "POST", body: JSON.stringify({ note }) }
+  ),
+
 
   reportPromotion: (payload: { promotionId: number; reason: string; details?: string }) => apiRequest(`/api/reports`, { method: "POST", body: JSON.stringify(payload) }),
   getReport: (id: number | string) => apiRequest<ReportItem>(`/api/reports/${id}`),
