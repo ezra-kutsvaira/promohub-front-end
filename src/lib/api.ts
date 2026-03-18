@@ -677,9 +677,14 @@ export const api = {
     ],
     { method: "POST", body: JSON.stringify(payload) }
   ),
-  getBusinessVerification: (id: number | string) => apiRequestWithFallback<BusinessVerificationReview>(
-    `/api/business-verification/${id}`,
-    `/api/business-verifications/${id}`
+  getBusinessVerification: (id: number | string) => apiRequestWithAlternatives<BusinessVerificationReview>(
+    [
+      `/api/business-verification/${id}`,
+      `/api/business-verifications/${id}`,
+      `/api/businesses/${id}/verification`,
+      `/api/businesses/${id}/business-verification`,
+      `/api/admin/businesses/${id}/verification`,
+    ]
   ),
   approveBusinessVerification: (id: number | string, note?: string) => apiRequestWithFallback<void>(
     `/api/business-verification/${id}/approve`,
@@ -769,6 +774,15 @@ export const api = {
     throw new Error("Unable to load admin promotions.");
   },
   getAdminEvents: () => apiRequest<Event[]>("/api/admin/events"),
-  getAdminBusinesses: () => apiRequest<Business[]>("/api/admin/businesses"),
+  getAdminBusinesses: () => apiRequestWithAlternatives<Business[]>(
+    [
+      "/api/admin/businesses",
+      "/api/businesses/admin",
+      "/api/businesses?scope=admin",
+      "/api/businesses",
+    ],
+    {},
+    [400, 404]
+  ),
   getSecurityAuditLogs: () => apiRequest<SecurityAuditLog[]>("/api/admin/security-audit-logs"),
 };
