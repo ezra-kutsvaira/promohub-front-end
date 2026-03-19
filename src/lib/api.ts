@@ -446,6 +446,12 @@ const toPromotionArray = (payload: PageResponse<Promotion> | Promotion[] | null 
   return payload.content ?? [];
 };
 
+const toBusinessArray = (payload: PageResponse<Business> | Business[] | null | undefined): Business[] => {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  return payload.content ?? [];
+};
+
 const toStatusParam = (status: string): string =>
   status.trim().replace(/[-\s]+/g, "_").toUpperCase();
 
@@ -718,7 +724,11 @@ export const api = {
   getPlatformAnalytics: () => apiRequest<PlatformAnalytics>("/api/analytics/platform"),
   getBusinessAnalytics: (businessId: number | string) => apiRequest<BusinessAnalytics>(`/api/analytics/business/${businessId}`),
 
-  getAdminPromotions: () => apiRequest<Promotion[]>("/api/admin/promotions"),
+  //getAdminPromotions: () => apiRequest<Promotion[]>("/api/admin/promotions"),
+   getAdminPromotions: async () => {
+    const payload = await apiRequest<PageResponse<Promotion> | Promotion[]>("/api/admin/promotions");
+    return toPromotionArray(payload);
+  },
   approvePromotion: (id: number | string) =>
     apiRequestWithAlternatives<void>(
       [
@@ -759,7 +769,9 @@ export const api = {
     for (const candidate of parameterCandidates) {
       try {
         const query = candidate ? `?${new URLSearchParams(candidate).toString()}` : "";
-        const promotions = await apiRequest<Promotion[]>(`/api/admin/promotions${query}`);
+       // const promotions = await apiRequest<Promotion[]>(`/api/admin/promotions${query}`);
+       const payload = await apiRequest<PageResponse<Promotion> | Promotion[]>(`/api/admin/promotions${query}`);
+       const promotions = toPromotionArray(payload);
 
         return promotions.filter((promotion) => matchesRequestedStatus(promotion, requestedStatus));
       } catch (error) {
@@ -774,15 +786,19 @@ export const api = {
     throw new Error("Unable to load admin promotions.");
   },
   getAdminEvents: () => apiRequest<Event[]>("/api/admin/events"),
-  getAdminBusinesses: () => apiRequestWithAlternatives<Business[]>(
-    [
-      "/api/admin/businesses",
-      "/api/businesses/admin",
-      "/api/businesses?scope=admin",
-      "/api/businesses",
-    ],
-    {},
-    [400, 404]
-  ),
+  getAdminBusinesses: async () => {
+    const payload = await apiRequestWithAlternatives<PageResponse<Business> | Business[]>(
+      [
+        "/api/admin/businesses",
+        "/api/businesses/admin",
+        "/api/businesses?scope=admin",
+        "/api/businesses",
+      ],
+      {},
+      [400, 404]
+    );
+
+    return toBusinessArray(payload);
+  },
   getSecurityAuditLogs: () => apiRequest<SecurityAuditLog[]>("/api/admin/security-audit-logs"),
 };
