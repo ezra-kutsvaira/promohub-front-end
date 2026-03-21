@@ -44,8 +44,20 @@ type PromotionQueueItem = {
   business: Business | null;
 };
 
-const PENDING_STATUSES = new Set(["PENDING", "IN_REVIEW", "SUBMITTED"]);
+const PENDING_STATUSES = new Set([
+  "PENDING",
+  "IN_REVIEW",
+  "SUBMITTED",
+  "AWAITING_REVIEW",
+  "AWAITING_APPROVAL",
+  "UNDER_REVIEW",
+  "REVIEW_PENDING",
+  "QUEUED",
+  "REQUESTED",
+  "NEW",
+]);
 const REQUESTED_MORE_DOCS_STATUSES = new Set(["MORE_DOCUMENTS_REQUESTED", "ADDITIONAL_DOCUMENTS_REQUIRED"]);
+const FINAL_REVIEW_STATUSES = new Set(["APPROVED", "VERIFIED", "REJECTED", "DECLINED"]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -60,6 +72,54 @@ const formatDateTime = (value?: string) => {
   if (!value) return "-";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+};
+
+const formatOptionalValue = (value?: string) => {
+  const normalizedValue = value?.trim();
+  return normalizedValue && normalizedValue.length > 0 ? normalizedValue : "—";
+};
+
+const getStringFromRecordCandidates = (source: Record<string, unknown> | null, candidates: string[]) => {
+  if (!source) return undefined;
+
+  for (const candidate of candidates) {
+    const value = source[candidate];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+};
+
+const getQueueItemStatus = (item: QueueItem) =>
+  String(item.review?.status ?? item.business.businessVerificationStatus ?? "").toUpperCase();
+
+const shouldIncludeQueueItem = (item: QueueItem) => {
+  const normalizedStatus = getQueueItemStatus(item);
+
+  if (PENDING_STATUSES.has(normalizedStatus) || REQUESTED_MORE_DOCS_STATUSES.has(normalizedStatus)) {
+    return true;
+  }
+
+  if (FINAL_REVIEW_STATUSES.has(normalizedStatus)) {
+    return false;
+  }
+
+  return !item.business.verified;
+};
+
+const getVerificationFieldValue = (
+  item: QueueItem,
+  candidates: string[],
+) => {
+  const reviewRecord = isRecord(item.review) ? item.review : null;
+  const businessRecord = isRecord(item.business) ? item.business : null;
+
+  return (
+    getStringFromRecordCandidates(reviewRecord, candidates)
+    ?? getStringFromRecordCandidates(businessRecord, candidates)
+  );
 };
 
 const extractHistoryFromReview = (review: BusinessVerificationReview | null): ReviewerHistoryItem[] => {
@@ -148,13 +208,7 @@ const OperationsConsole = () => {
         })
       );
 
-      const pendingQueue = businessesWithReviews.filter((item) => {
-        const normalizedStatus = String(
-          item.review?.status ?? item.business.businessVerificationStatus ?? ""
-        ).toUpperCase();
-        return PENDING_STATUSES.has(normalizedStatus)
-          || REQUESTED_MORE_DOCS_STATUSES.has(normalizedStatus);
-      });
+      const pendingQueue = businessesWithReviews.filter(shouldIncludeQueueItem);
 
       setQueueItems(pendingQueue);
       setSelectedBusinessId((current) => {
@@ -219,9 +273,7 @@ const OperationsConsole = () => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
     return queueItems.filter((item) => {
-      const normalizedStatus = String(
-        item.review?.status ?? item.business.businessVerificationStatus ?? ""
-      ).toUpperCase();
+      const normalizedStatus = getQueueItemStatus(item);
 
       if (!matchesQueueFilter(normalizedStatus, statusFilter)) {
         return false;
@@ -523,15 +575,15 @@ const OperationsConsole = () => {
                       <div className="grid gap-3 md:grid-cols-2 text-sm">
                         <div>
                           <p className="text-muted-foreground">VAT number</p>
-                          <p className="font-medium">{selectedQueueItem.review?.vatNumber ?? "—"}</p>
+                          <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["vatNumber", "vat_number", "vatNo", "vat_no"]))}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">TIN number</p>
-                          <p className="font-medium">{selectedQueueItem.review?.tinNumber ?? "—"}</p>
+                          <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["tinNumber", "tin_number", "tinNo", "tin_no"]))}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Owner national ID</p>
-                          <p className="font-medium">{selectedQueueItem.review?.ownerNationalId ?? "—"}</p>
+                          <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number"]))}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Submitted</p>
