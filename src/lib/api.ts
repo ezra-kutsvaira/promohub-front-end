@@ -32,6 +32,16 @@ const buildUrl = (path: string) => {
   return `${API_BASE_URL}${normalizedPath}`
 };
 
+//Changes to take note
+const appendQueryParam = (path: string, key: string, value?: string) => {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) return path;
+
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}${encodeURIComponent(key)}=${encodeURIComponent(trimmedValue)}`;
+};
+
+
 type RequestOptions = RequestInit & {
   skipAuth?: boolean;
   skipRefresh?: boolean;
@@ -698,8 +708,10 @@ export const api = {
     { method: "POST", body: JSON.stringify(note ? { note } : {}) }
   ),
   rejectBusinessVerification: (id: number | string, reason?: string) => apiRequestWithFallback<void>(
-    `/api/business-verification/${id}/reject`,
-    `/api/business-verifications/${id}/reject`,
+    // `/api/business-verification/${id}/reject`,
+    //`/api/business-verifications/${id}/reject`,
+     appendQueryParam(`/api/business-verification/${id}/reject`, "reason", reason),
+    appendQueryParam(`/api/business-verifications/${id}/reject`, "reason", reason),
     { method: "POST", body: JSON.stringify(reason ? { reason } : {}) }
   ),
 
@@ -742,10 +754,14 @@ export const api = {
   rejectPromotion: (id: number | string, reason?: string) =>
     apiRequestWithAlternatives<void>(
       [
-        `/api/admin/promotions/${id}/reject`,
-        `/api/admin/promotion/${id}/reject`,
-        `/api/promotions/${id}/reject`,
-        `/api/promotions/${id}/verification/reject`,
+        //`/api/admin/promotions/${id}/reject`,
+        //`/api/admin/promotion/${id}/reject`,
+        //`/api/promotions/${id}/reject`,
+        //`/api/promotions/${id}/verification/reject`,
+        appendQueryParam(`/api/admin/promotions/${id}/reject`, "reason", reason),
+        appendQueryParam(`/api/admin/promotion/${id}/reject`, "reason", reason),
+        appendQueryParam(`/api/promotions/${id}/reject`, "reason", reason),
+        appendQueryParam(`/api/promotions/${id}/verification/reject`, "reason", reason),
       ],
       { method: "POST", body: JSON.stringify(reason ? { reason } : {}) }
     ),
