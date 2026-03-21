@@ -462,6 +462,106 @@ const toBusinessArray = (payload: PageResponse<Business> | Business[] | null | u
   return payload.content ?? [];
 };
 
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const getStringFromCandidates = (
+  source: Record<string, unknown> | null,
+  candidates: string[],
+): string | undefined => {
+  if (!source) return undefined;
+
+  for (const candidate of candidates) {
+    const value = source[candidate];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+};
+
+const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerificationReview => {
+  const root = asRecord(payload) ?? {};
+  const nestedSources = [
+    root,
+    asRecord(root.verification),
+    asRecord(root.review),
+    asRecord(root.businessVerification),
+    asRecord(root.verificationRequest),
+    asRecord(root.details),
+    asRecord(root.business),
+  ].filter((value): value is Record<string, unknown> => Boolean(value));
+
+  const pickString = (candidates: string[]) => {
+    for (const source of nestedSources) {
+      const value = getStringFromCandidates(source, candidates);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+    return undefined;
+  };
+
+  const idValue = nestedSources
+    .map((source) => source.id)
+    .find((value) => typeof value === "number" || typeof value === "string");
+
+  const businessIdValue = nestedSources
+    .map((source) => source.businessId ?? source.business_id)
+    .find((value) => typeof value === "number" || typeof value === "string");
+
+  return {
+    id: Number(idValue ?? businessIdValue ?? 0),
+    businessId: Number(businessIdValue ?? idValue ?? 0),
+    status: pickString(["status", "verificationStatus", "verification_status", "businessVerificationStatus", "business_verification_status"]) ?? "",
+    vatNumber: pickString(["vatNumber", "vat_number", "vatNo", "vat_no"]),
+    tinNumber: pickString(["tinNumber", "tin_number", "tinNo", "tin_no"]),
+    ownerNationalId: pickString(["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number"]),
+    supportingDocumentsUrl: pickString(["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url"]),
+    submittedAt: pickString(["submittedAt", "submitted_at", "createdAt", "created_at"]),
+  };
+};
+
+const toBusinessVerificationRequestBodies = (payload: BusinessVerificationRequest) => {
+  const supportingDocumentsUrl = payload.supportingDocumentsUrl?.trim();
+
+  return [
+    {
+      businessId: payload.businessId,
+      vatNumber: payload.vatNumber,
+      tinNumber: payload.tinNumber,
+      ownerNationalId: payload.ownerNationalId,
+      ...(supportingDocumentsUrl ? { supportingDocumentsUrl } : {}),
+    },
+    {
+      business_id: payload.businessId,
+      vat_number: payload.vatNumber,
+      tin_number: payload.tinNumber,
+      owner_national_id: payload.ownerNationalId,
+      ...(supportingDocumentsUrl ? { supporting_documents_url: supportingDocumentsUrl } : {}),
+    },
+    {
+      businessId: payload.businessId,
+      business_id: payload.businessId,
+      vatNumber: payload.vatNumber,
+      vat_number: payload.vatNumber,
+      tinNumber: payload.tinNumber,
+      tin_number: payload.tinNumber,
+      ownerNationalId: payload.ownerNationalId,
+      owner_national_id: payload.ownerNationalId,
+      ...(supportingDocumentsUrl
+        ? {
+            supportingDocumentsUrl,
+            supporting_documents_url: supportingDocumentsUrl,
+          }
+        : {}),
+    },
+  ];
+};
+
 const toStatusParam = (status: string): string =>
   status.trim().replace(/[-\s]+/g, "_").toUpperCase();
 
@@ -683,24 +783,43 @@ export const api = {
     });
   },
   deleteBusiness: (id: number | string) => apiRequest<void>(`/api/businesses/${id}`, { method: "DELETE" }),
-  requestBusinessVerification: (payload: BusinessVerificationRequest) => apiRequestWithAlternatives(
-    [
+  requestBusinessVerification: async (payload: BusinessVerificationRequest) => {
+    const paths = [
       "/api/business-verification",
       "/api/business-verifications",
       `/api/businesses/${payload.businessId}/verification`,
       `/api/businesses/${payload.businessId}/verify`,
       `/api/businesses/${payload.businessId}/verification-request`,
-    ],
-    { method: "POST", body: JSON.stringify(payload) }
-  ),
-  getBusinessVerification: (id: number | string) => apiRequestWithAlternatives<BusinessVerificationReview>(
-    [
-      `/api/business-verification/${id}`,
-      `/api/business-verifications/${id}`,
-      `/api/businesses/${id}/verification`,
-      `/api/businesses/${id}/business-verification`,
-      `/api/admin/businesses/${id}/verification`,
-    ]
+    ];
+
+    let lastError: unknown;
+    for (const body of toBusinessVerificationRequestBodies(payload)) {
+      try {
+        return await apiRequestWithAlternatives(
+          paths,
+          { method: "POST", body: JSON.stringify(body) }
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to submit business verification.");
+  },
+  getBusinessVerification: async (id: number | string) => normalizeBusinessVerificationReview(
+    await apiRequestWithAlternatives<unknown>(
+      [
+        `/api/business-verification/${id}`,
+        `/api/business-verifications/${id}`,
+        `/api/businesses/${id}/verification`,
+        `/api/businesses/${id}/business-verification`,
+        `/api/admin/businesses/${id}/verification`,
+      ]
+    )
   ),
   approveBusinessVerification: (id: number | string, note?: string) => apiRequestWithFallback<void>(
     `/api/business-verification/${id}/approve`,

@@ -18,6 +18,21 @@ import {
   isRejectedPromotion,
 } from "@/lib/promotionStatus";
 
+const PENDING_BUSINESS_STATUSES = new Set([
+  "PENDING",
+  "IN_REVIEW",
+  "SUBMITTED",
+  "AWAITING_REVIEW",
+  "AWAITING_APPROVAL",
+  "UNDER_REVIEW",
+  "REVIEW_PENDING",
+  "QUEUED",
+  "REQUESTED",
+  "NEW",
+  "MORE_DOCUMENTS_REQUESTED",
+  "ADDITIONAL_DOCUMENTS_REQUIRED",
+]);
+
 const toPromotionPage = (payload: PageResponse<Promotion> | Promotion[] | null | undefined): PageResponse<Promotion> => {
   if (Array.isArray(payload)) {
     return {
@@ -190,18 +205,30 @@ const Dashboard = () => {
         }
 
         if (isAdmin) {
-          const [pendingPromotions, approvedPromotions, rejectedPromotions] = await Promise.all([
+          const [pendingPromotions, approvedPromotions, rejectedPromotions, analytics, adminBusinesses] = await Promise.all([
             api.getAdminPromotionsByStatus("PENDING", user.id),
             api.getAdminPromotionsByStatus("APPROVED", user.id),
             api.getAdminPromotionsByStatus("REJECTED", user.id),
+            api.getPlatformAnalytics(),
+            api.getAdminBusinesses().catch(() => []),
           ]);
           if (!isMounted) return;
           setAdminPendingPromotions(pendingPromotions);
           setAdminApprovedPromotions(approvedPromotions);
           setAdminRejectedPromotions(rejectedPromotions);
-          const analytics = await api.getPlatformAnalytics();
-          if (!isMounted) return;
-          setPlatformAnalytics(analytics);
+          const derivedPendingBusinesses = adminBusinesses.filter((business) => {
+            const normalizedStatus = String(business.businessVerificationStatus ?? "").toUpperCase();
+            if (PENDING_BUSINESS_STATUSES.has(normalizedStatus)) {
+              return true;
+            }
+
+            return !business.verified;
+          }).length;
+
+          setPlatformAnalytics({
+            ...analytics,
+            pendingBusinesses: Math.max(analytics.pendingBusinesses, derivedPendingBusinesses),
+          });
         }
       } catch (error) {
         if (isBusiness) {
