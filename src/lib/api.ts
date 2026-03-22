@@ -483,17 +483,48 @@ const getStringFromCandidates = (
   return undefined;
 };
 
+const collectNestedRecords = (
+  value: unknown,
+  seen = new Set<Record<string, unknown>>()
+): Record<string, unknown>[] => {
+  if (!asRecord(value)) return [];
+  if (seen.has(value)) return [];
+
+  seen.add(value);
+  const records: Record<string, unknown>[] = [value];
+
+  Object.values(value).forEach((entry) => {
+    if (Array.isArray(entry)) {
+      entry.forEach((item) => {
+        records.push(...collectNestedRecords(item, seen));
+      });
+      return;
+    }
+
+    records.push(...collectNestedRecords(entry, seen));
+  });
+
+  return records;
+};
+
+const pickFirstMatchingValue = (
+  sources: Record<string, unknown>[],
+  candidates: string[]
+): unknown => {
+  for (const source of sources) {
+    for (const candidate of candidates) {
+      const value = source[candidate];
+      if (value !== undefined && value !== null && `${value}`.trim().length > 0) {
+        return value;
+      }
+    }
+  }
+
+  return undefined;
+};
+
 const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerificationReview => {
-  const root = asRecord(payload) ?? {};
-  const nestedSources = [
-    root,
-    asRecord(root.verification),
-    asRecord(root.review),
-    asRecord(root.businessVerification),
-    asRecord(root.verificationRequest),
-    asRecord(root.details),
-    asRecord(root.business),
-  ].filter((value): value is Record<string, unknown> => Boolean(value));
+  const nestedSources = collectNestedRecords(payload);
 
   const pickString = (candidates: string[]) => {
     for (const source of nestedSources) {
@@ -505,23 +536,18 @@ const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerifica
     return undefined;
   };
 
-  const idValue = nestedSources
-    .map((source) => source.id)
-    .find((value) => typeof value === "number" || typeof value === "string");
-
-  const businessIdValue = nestedSources
-    .map((source) => source.businessId ?? source.business_id)
-    .find((value) => typeof value === "number" || typeof value === "string");
+  const idValue = pickFirstMatchingValue(nestedSources, ["id", "verificationId", "verification_id", "reviewId", "review_id"]);
+  const businessIdValue = pickFirstMatchingValue(nestedSources, ["businessId", "business_id", "id"]);
 
   return {
     id: Number(idValue ?? businessIdValue ?? 0),
     businessId: Number(businessIdValue ?? idValue ?? 0),
     status: pickString(["status", "verificationStatus", "verification_status", "businessVerificationStatus", "business_verification_status"]) ?? "",
-    vatNumber: pickString(["vatNumber", "vat_number", "vatNo", "vat_no"]),
-    tinNumber: pickString(["tinNumber", "tin_number", "tinNo", "tin_no"]),
-    ownerNationalId: pickString(["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number"]),
-    supportingDocumentsUrl: pickString(["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url"]),
-    submittedAt: pickString(["submittedAt", "submitted_at", "createdAt", "created_at"]),
+    vatNumber: pickString(["vatNumber", "vat_number", "vatNo", "vat_no", "vat", "vatId", "vat_id"]),
+    tinNumber: pickString(["tinNumber", "tin_number", "tinNo", "tin_no", "tin", "taxIdentificationNumber", "tax_identification_number"]),
+    ownerNationalId: pickString(["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number", "nationalIdNumber", "national_id_number"]),
+    supportingDocumentsUrl: pickString(["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url", "documentUrl", "document_url", "supportingDocumentUrl"]),
+    submittedAt: pickString(["submittedAt", "submitted_at", "createdAt", "created_at", "requestedAt", "requested_at"]),
   };
 };
 
@@ -548,14 +574,24 @@ const toBusinessVerificationRequestBodies = (payload: BusinessVerificationReques
       business_id: payload.businessId,
       vatNumber: payload.vatNumber,
       vat_number: payload.vatNumber,
+      vat: payload.vatNumber,
       tinNumber: payload.tinNumber,
       tin_number: payload.tinNumber,
+      tin: payload.tinNumber,
+      taxIdentificationNumber: payload.tinNumber,
+      tax_identification_number: payload.tinNumber,
       ownerNationalId: payload.ownerNationalId,
       owner_national_id: payload.ownerNationalId,
+      nationalId: payload.ownerNationalId,
+      national_id: payload.ownerNationalId,
+      nationalIdNumber: payload.ownerNationalId,
+      national_id_number: payload.ownerNationalId,
       ...(supportingDocumentsUrl
         ? {
             supportingDocumentsUrl,
             supporting_documents_url: supportingDocumentsUrl,
+            documentUrl: supportingDocumentsUrl,
+            document_url: supportingDocumentsUrl,
           }
         : {}),
     },

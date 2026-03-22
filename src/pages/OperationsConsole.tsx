@@ -169,7 +169,7 @@ const matchesPromotionFilter = (status: string, filter: PromotionStatusFilter) =
 
 const OperationsConsole = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<QueueStatusFilter>("PENDING");
+  const [statusFilter, setStatusFilter] = useState<QueueStatusFilter>("ALL");
   const [promotionStatusFilter, setPromotionStatusFilter] = useState<PromotionStatusFilter>("PENDING");
   const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(null);
   const [approveNote, setApproveNote] = useState("");
