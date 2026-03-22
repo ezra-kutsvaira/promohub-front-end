@@ -436,7 +436,7 @@ const OperationsConsole = () => {
     setPromotionActionId(promotion.id);
     try {
       await api.approvePromotion(promotion.id);
-      toast.success(`Promotion \"${promotion.title}\" was approved and is now live.`);
+      toast.success(`Promotion "${promotion.title}" was approved and is now live.`);
       await loadPromotions();
     } catch (error) {
       console.error("Unable to approve promotion", error);
@@ -457,7 +457,7 @@ const OperationsConsole = () => {
     try {
       await api.rejectPromotion(promotion.id, reason);
       setModerationReasonByPromotionId((current) => ({ ...current, [promotion.id]: "" }));
-      toast.success(`Promotion \"${promotion.title}\" was rejected.`);
+      toast.success(`Promotion "${promotion.title}" was rejected.`);
       await loadPromotions();
     } catch (error) {
       console.error("Unable to reject promotion", error);

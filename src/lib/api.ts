@@ -287,6 +287,9 @@ export type BusinessVerificationReview = {
   ownerNationalId?: string;
   supportingDocumentsUrl?: string;
   submittedAt?: string;
+  reviewHistory?: unknown[];
+  reviewerHistory?: unknown[];
+  notesHistory?: unknown[];
 };
 
 export type Promotion = {
@@ -487,6 +490,10 @@ const collectNestedRecords = (
   value: unknown,
   seen = new Set<Record<string, unknown>>()
 ): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectNestedRecords(entry, seen));
+  }
+
   if (!asRecord(value)) return [];
   if (seen.has(value)) return [];
 
@@ -494,13 +501,6 @@ const collectNestedRecords = (
   const records: Record<string, unknown>[] = [value];
 
   Object.values(value).forEach((entry) => {
-    if (Array.isArray(entry)) {
-      entry.forEach((item) => {
-        records.push(...collectNestedRecords(item, seen));
-      });
-      return;
-    }
-
     records.push(...collectNestedRecords(entry, seen));
   });
 
@@ -536,6 +536,18 @@ const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerifica
     return undefined;
   };
 
+  const pickArray = (candidates: string[]) => {
+    for (const source of nestedSources) {
+      for (const candidate of candidates) {
+        const value = source[candidate];
+        if (Array.isArray(value)) {
+          return value;
+        }
+      }
+    }
+    return undefined;
+  };
+
   const idValue = pickFirstMatchingValue(nestedSources, ["id", "verificationId", "verification_id", "reviewId", "review_id"]);
   const businessIdValue = pickFirstMatchingValue(nestedSources, ["businessId", "business_id", "id"]);
 
@@ -548,6 +560,9 @@ const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerifica
     ownerNationalId: pickString(["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number", "nationalIdNumber", "national_id_number"]),
     supportingDocumentsUrl: pickString(["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url", "documentUrl", "document_url", "supportingDocumentUrl"]),
     submittedAt: pickString(["submittedAt", "submitted_at", "createdAt", "created_at", "requestedAt", "requested_at"]),
+    reviewHistory: pickArray(["reviewHistory"]),
+    reviewerHistory: pickArray(["reviewerHistory"]),
+    notesHistory: pickArray(["notesHistory"]),
   };
 };
 
