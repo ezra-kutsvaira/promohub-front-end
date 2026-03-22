@@ -846,6 +846,19 @@ export const api = {
 
     throw new Error("Unable to submit business verification.");
   },
+/*
+  getBusinessVerification: async (id: number | string) => normalizeBusinessVerificationReview(
+    await apiRequestWithAlternatives<unknown>(
+      [
+        `/api/business-verification/${id}`,
+        `/api/business-verifications/${id}`,
+        `/api/businesses/${id}/verification`,
+        `/api/businesses/${id}/business-verification`,
+        `/api/admin/businesses/${id}/verification`,
+      ]
+    )
+  ),
+  */
   getBusinessVerification: async (id: number | string) => {
     const normalizedBusinessId = String(id);
     const businessScopedPaths = [
