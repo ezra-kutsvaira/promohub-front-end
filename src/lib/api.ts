@@ -846,17 +846,56 @@ export const api = {
 
     throw new Error("Unable to submit business verification.");
   },
-  getBusinessVerification: async (id: number | string) => normalizeBusinessVerificationReview(
-    await apiRequestWithAlternatives<unknown>(
-      [
-        `/api/business-verification/${id}`,
-        `/api/business-verifications/${id}`,
-        `/api/businesses/${id}/verification`,
-        `/api/businesses/${id}/business-verification`,
-        `/api/admin/businesses/${id}/verification`,
-      ]
-    )
-  ),
+  getBusinessVerification: async (id: number | string) => {
+    const normalizedBusinessId = String(id);
+    const businessScopedPaths = [
+      `/api/businesses/${id}/verification`,
+      `/api/businesses/${id}/business-verification`,
+      `/api/admin/businesses/${id}/verification`,
+      `/api/business-verification?businessId=${encodeURIComponent(normalizedBusinessId)}`,
+      `/api/business-verifications?businessId=${encodeURIComponent(normalizedBusinessId)}`,
+    ];
+    const verificationRecordPaths = [
+      `/api/business-verification/${id}`,
+      `/api/business-verifications/${id}`,
+    ];
+
+    let lastError: unknown;
+
+    for (const path of businessScopedPaths) {
+      try {
+        return normalizeBusinessVerificationReview(await apiRequest<unknown>(path));
+      } catch (error) {
+        lastError = error;
+        if (isNotFoundError(error)) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    for (const path of verificationRecordPaths) {
+      try {
+        const review = normalizeBusinessVerificationReview(await apiRequest<unknown>(path));
+        if (review.businessId > 0 && String(review.businessId) !== normalizedBusinessId) {
+          continue;
+        }
+        return review;
+      } catch (error) {
+        lastError = error;
+        if (isNotFoundError(error)) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to load business verification.");
+  },
   approveBusinessVerification: (id: number | string, note?: string) => apiRequestWithFallback<void>(
     `/api/business-verification/${id}/approve`,
     `/api/business-verifications/${id}/approve`,
