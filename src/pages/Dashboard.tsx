@@ -10,7 +10,7 @@ import { ArrowUpRight, BookmarkCheck, CalendarCheck, MapPin, Megaphone, Sparkles
 import { Link, useLocation } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { useEffect, useMemo, useState } from "react";
-import { api, type PageResponse, type PlatformAnalytics, type Promotion, type SavedPromotion } from "@/lib/api";
+import { api, type Business, type BusinessVerificationReview, type PageResponse, type PlatformAnalytics, type Promotion, type SavedPromotion } from "@/lib/api";
 import {
   getPromotionVerificationStatus,
   isApprovedPromotion,
@@ -32,6 +32,23 @@ const PENDING_BUSINESS_STATUSES = new Set([
   "MORE_DOCUMENTS_REQUESTED",
   "ADDITIONAL_DOCUMENTS_REQUIRED",
 ]);
+
+
+const FINAL_BUSINESS_STATUSES = new Set(["APPROVED", "VERIFIED", "REJECTED", "DECLINED"]);
+
+const shouldCountBusinessInVerificationQueue = (business: Business, review: BusinessVerificationReview | null) => {
+  const normalizedStatus = String(review?.status ?? business.businessVerificationStatus ?? "").toUpperCase();
+
+  if (PENDING_BUSINESS_STATUSES.has(normalizedStatus)) {
+    return true;
+  }
+
+  if (FINAL_BUSINESS_STATUSES.has(normalizedStatus)) {
+    return false;
+  }
+
+  return !business.verified;
+};
 
 const toPromotionPage = (payload: PageResponse<Promotion> | Promotion[] | null | undefined): PageResponse<Promotion> => {
   if (Array.isArray(payload)) {
@@ -216,18 +233,20 @@ const Dashboard = () => {
           setAdminPendingPromotions(pendingPromotions);
           setAdminApprovedPromotions(approvedPromotions);
           setAdminRejectedPromotions(rejectedPromotions);
-          const derivedPendingBusinesses = adminBusinesses.filter((business) => {
-            const normalizedStatus = String(business.businessVerificationStatus ?? "").toUpperCase();
-            if (PENDING_BUSINESS_STATUSES.has(normalizedStatus)) {
-              return true;
-            }
+          const reviewResults = await Promise.all(
+            adminBusinesses.map(async (business) => ({
+              business,
+              review: await api.getBusinessVerification(business.id).catch(() => null),
+            }))
+          );
 
-            return !business.verified;
-          }).length;
+          const derivedPendingBusinesses = reviewResults.filter(({ business, review }) =>
+            shouldCountBusinessInVerificationQueue(business, review)
+          ).length;
 
           setPlatformAnalytics({
             ...analytics,
-            pendingBusinesses: Math.max(analytics.pendingBusinesses, derivedPendingBusinesses),
+            pendingBusinesses: derivedPendingBusinesses,
           });
         }
       } catch (error) {
