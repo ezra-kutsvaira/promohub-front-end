@@ -92,6 +92,43 @@ const getStringFromRecordCandidates = (source: Record<string, unknown> | null, c
   return undefined;
 };
 
+const collectNestedRecords = (
+  value: unknown,
+  seen = new Set<Record<string, unknown>>(),
+): Record<string, unknown>[] => {
+  if (!isRecord(value)) return [];
+  if (seen.has(value)) return [];
+
+  seen.add(value);
+  const records: Record<string, unknown>[] = [value];
+
+  Object.values(value).forEach((entry) => {
+    if (Array.isArray(entry)) {
+      entry.forEach((item) => {
+        records.push(...collectNestedRecords(item, seen));
+      });
+      return;
+    }
+
+    records.push(...collectNestedRecords(entry, seen));
+  });
+
+  return records;
+};
+
+const getNestedStringFromCandidates = (value: unknown, candidates: string[]) => {
+  const records = collectNestedRecords(value);
+
+  for (const record of records) {
+    const match = getStringFromRecordCandidates(record, candidates);
+    if (match !== undefined) {
+      return match;
+    }
+  }
+
+  return undefined;
+};
+
 const getQueueItemStatus = (item: QueueItem) =>
   String(item.review?.status ?? item.business.businessVerificationStatus ?? "").toUpperCase();
 
@@ -112,15 +149,10 @@ const shouldIncludeQueueItem = (item: QueueItem) => {
 const getVerificationFieldValue = (
   item: QueueItem,
   candidates: string[],
-) => {
-  const reviewRecord = isRecord(item.review) ? item.review : null;
-  const businessRecord = isRecord(item.business) ? item.business : null;
-
-  return (
-    getStringFromRecordCandidates(reviewRecord, candidates)
-    ?? getStringFromRecordCandidates(businessRecord, candidates)
-  );
-};
+) => (
+  getNestedStringFromCandidates(item.review, candidates)
+  ?? getNestedStringFromCandidates(item.business, candidates)
+);
 
 const extractHistoryFromReview = (review: BusinessVerificationReview | null): ReviewerHistoryItem[] => {
   if (!review) return [];
@@ -563,7 +595,13 @@ const OperationsConsole = () => {
                     </p>
                   )}
 
-                  {selectedQueueItem && (
+                  {selectedQueueItem && (() => {
+                    const supportingDocumentsUrl = getVerificationFieldValue(
+                      selectedQueueItem,
+                      ["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url", "documentUrl", "document_url", "supportingDocumentUrl"],
+                    );
+
+                    return (
                     <>
                       <div className="space-y-1">
                         <h2 className="text-xl font-semibold">{selectedQueueItem.business.businessName}</h2>
@@ -593,15 +631,15 @@ const OperationsConsole = () => {
 
                       <div className="rounded-md border p-3 bg-muted/25">
                         <p className="text-sm font-medium mb-2">Supporting documents preview</p>
-                        {selectedQueueItem.review?.supportingDocumentsUrl ? (
+                        {supportingDocumentsUrl ? (
                           <div className="space-y-2">
                             <a
-                              href={selectedQueueItem.review.supportingDocumentsUrl}
+                              href={supportingDocumentsUrl}
                               target="_blank"
                               rel="noreferrer"
                               className="text-primary underline break-all text-sm"
                             >
-                              {selectedQueueItem.review.supportingDocumentsUrl}
+                              {supportingDocumentsUrl}
                             </a>
                             <p className="text-xs text-muted-foreground">
                               Open link in a new tab to inspect uploaded files.
@@ -695,7 +733,8 @@ const OperationsConsole = () => {
                         )}
                       </div>
                     </>
-                  )}
+                    );
+                  })()}
                 </CardContent>
               </Card>
             </div>
