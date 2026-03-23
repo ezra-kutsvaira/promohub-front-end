@@ -370,19 +370,25 @@ const OperationsConsole = () => {
       return;
     }
 
+    const verificationRecordId = selectedQueueItem.review?.id;
+    if (!verificationRecordId) {
+      toast.error("No verification record was found for this business.");
+      return;
+    }
+
     setIsSubmittingAction(true);
 
     try {
       if (action === "APPROVED") {
-        await api.approveBusinessVerification(selectedQueueItem.business.id, note.trim());
+        await api.approveBusinessVerification(verificationRecordId, note.trim());
       }
 
       if (action === "REJECTED") {
-        await api.rejectBusinessVerification(selectedQueueItem.business.id, note.trim());
+        await api.rejectBusinessVerification(verificationRecordId, note.trim());
       }
 
       if (action === "MORE_DOCUMENTS_REQUESTED") {
-        await api.requestAdditionalBusinessVerificationDocuments(selectedQueueItem.business.id, note.trim());
+        await api.requestAdditionalBusinessVerificationDocuments(verificationRecordId, note.trim());
       }
 
       setQueueItems((previous) => previous.map((item) => {

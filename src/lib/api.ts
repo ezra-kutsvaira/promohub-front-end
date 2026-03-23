@@ -883,26 +883,11 @@ export const api = {
       `/api/business-verification?businessId=${encodeURIComponent(normalizedBusinessId)}`,
       `/api/business-verifications?businessId=${encodeURIComponent(normalizedBusinessId)}`,
     ];
-    const verificationRecordPaths = [
-      `/api/business-verification/${id}`,
-      `/api/business-verifications/${id}`,
-    ];
+   
 
     let lastError: unknown;
 
     for (const path of businessScopedPaths) {
-      try {
-        return normalizeBusinessVerificationReview(await apiRequest<unknown>(path));
-      } catch (error) {
-        lastError = error;
-        if (isNotFoundError(error)) {
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    for (const path of verificationRecordPaths) {
       try {
         const review = normalizeBusinessVerificationReview(await apiRequest<unknown>(path));
         if (review.businessId > 0 && String(review.businessId) !== normalizedBusinessId) {
