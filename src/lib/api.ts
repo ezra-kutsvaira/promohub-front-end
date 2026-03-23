@@ -549,21 +549,48 @@ const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerifica
   };
 
   const idValue = pickFirstMatchingValue(nestedSources, ["id", "verificationId", "verification_id", "reviewId", "review_id"]);
-  const businessIdValue = pickFirstMatchingValue(nestedSources, ["businessId", "business_id", "id"]);
+  const businessIdValue = pickFirstMatchingValue(nestedSources, ["businessId", "business_id", "businessID", "business_id_fk", "id"]);
 
   return {
     id: Number(idValue ?? businessIdValue ?? 0),
     businessId: Number(businessIdValue ?? idValue ?? 0),
     status: pickString(["status", "verificationStatus", "verification_status", "businessVerificationStatus", "business_verification_status"]) ?? "",
-    vatNumber: pickString(["vatNumber", "vat_number", "vatNo", "vat_no", "vat", "vatId", "vat_id"]),
-    tinNumber: pickString(["tinNumber", "tin_number", "tinNo", "tin_no", "tin", "taxIdentificationNumber", "tax_identification_number"]),
-    ownerNationalId: pickString(["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number", "nationalIdNumber", "national_id_number"]),
+    vatNumber: pickString(["vatNumber", "vat_number", "vatNo", "vat_no", "vat", "vatId", "vat_id", "businessVatNumber", "business_vat_number", "vatRegistrationNumber", "vat_registration_number"]),
+    tinNumber: pickString(["tinNumber", "tin_number", "tinNo", "tin_no", "tin", "taxIdentificationNumber", "tax_identification_number", "taxTinNumber", "tax_tin_number", "taxPayerNumber", "tax_payer_number"]),
+    ownerNationalId: pickString(["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number", "nationalIdNumber", "national_id_number", "ownerNationalID", "owner_nationalID", "ownerNationalIdentityNumber", "owner_national_identity_number"]),
     supportingDocumentsUrl: pickString(["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url", "documentUrl", "document_url", "supportingDocumentUrl"]),
     submittedAt: pickString(["submittedAt", "submitted_at", "createdAt", "created_at", "requestedAt", "requested_at"]),
     reviewHistory: pickArray(["reviewHistory"]),
     reviewerHistory: pickArray(["reviewerHistory"]),
     notesHistory: pickArray(["notesHistory"]),
   };
+};
+
+const normalizeBusinessVerificationReviewCollection = (
+  payload: unknown,
+  businessId?: number | string,
+): BusinessVerificationReview => {
+  const normalizedBusinessId = businessId === undefined ? undefined : String(businessId);
+  const candidates = Array.isArray(payload)
+    ? payload
+    : isRecord(payload) && Array.isArray(payload.content)
+      ? payload.content
+      : isRecord(payload) && Array.isArray(payload.data)
+        ? payload.data
+        : [payload];
+
+  const normalizedCandidates = candidates
+    .map((candidate) => normalizeBusinessVerificationReview(candidate))
+    .filter((candidate) => candidate.id > 0 || candidate.businessId > 0 || candidate.status || candidate.vatNumber || candidate.tinNumber || candidate.ownerNationalId);
+
+  if (normalizedBusinessId) {
+    const businessMatch = normalizedCandidates.find((candidate) => String(candidate.businessId) === normalizedBusinessId);
+    if (businessMatch) {
+      return businessMatch;
+    }
+  }
+
+  return normalizedCandidates[0] ?? normalizeBusinessVerificationReview(payload);
 };
 
 const toBusinessVerificationRequestBodies = (payload: BusinessVerificationRequest) => {
@@ -877,19 +904,26 @@ export const api = {
   getBusinessVerification: async (id: number | string) => {
     const normalizedBusinessId = String(id);
     const businessScopedPaths = [
+      `/api/business-verification/${id}`,
+      `/api/business-verifications/${id}`,
       `/api/businesses/${id}/verification`,
       `/api/businesses/${id}/business-verification`,
       `/api/admin/businesses/${id}/verification`,
+      `/api/admin/business-verification/${id}`,
+      `/api/admin/business-verifications/${id}`,
       `/api/business-verification?businessId=${encodeURIComponent(normalizedBusinessId)}`,
+      `/api/business-verification?business_id=${encodeURIComponent(normalizedBusinessId)}`,
       `/api/business-verifications?businessId=${encodeURIComponent(normalizedBusinessId)}`,
+      `/api/business-verifications?business_id=${encodeURIComponent(normalizedBusinessId)}`,
+      `/api/admin/business-verifications?businessId=${encodeURIComponent(normalizedBusinessId)}`,
+      `/api/admin/business-verifications?business_id=${encodeURIComponent(normalizedBusinessId)}`,
     ];
-   
 
     let lastError: unknown;
 
     for (const path of businessScopedPaths) {
       try {
-        const review = normalizeBusinessVerificationReview(await apiRequest<unknown>(path));
+        const review = normalizeBusinessVerificationReviewCollection(await apiRequest<unknown>(path), id);
         if (review.businessId > 0 && String(review.businessId) !== normalizedBusinessId) {
           continue;
         }
