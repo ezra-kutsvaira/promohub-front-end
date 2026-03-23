@@ -619,15 +619,15 @@ const OperationsConsole = () => {
                       <div className="grid gap-3 md:grid-cols-2 text-sm">
                         <div>
                           <p className="text-muted-foreground">VAT number</p>
-                          <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["vatNumber", "vat_number", "vatNo", "vat_no"]))}</p>
+                          <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["vatNumber", "vat_number", "vatNo", "vat_no", "vat", "vatId", "vat_id", "businessVatNumber", "business_vat_number", "vatRegistrationNumber", "vat_registration_number"]))}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">TIN number</p>
-                          <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["tinNumber", "tin_number", "tinNo", "tin_no"]))}</p>
+                          <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["tinNumber", "tin_number", "tinNo", "tin_no", "tin", "taxIdentificationNumber", "tax_identification_number", "taxTinNumber", "tax_tin_number", "taxPayerNumber", "tax_payer_number"]))}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Owner national ID</p>
-                          <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number"]))}</p>
+                          <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number", "nationalIdNumber", "national_id_number", "ownerNationalID", "owner_nationalID", "ownerNationalIdentityNumber", "owner_national_identity_number"]))}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Submitted</p>
