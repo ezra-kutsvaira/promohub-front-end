@@ -548,7 +548,19 @@ const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerifica
     return undefined;
   };
 
-  const idValue = pickFirstMatchingValue(nestedSources, ["id", "verificationId", "verification_id", "reviewId", "review_id"]);
+  const idValue = pickFirstMatchingValue(nestedSources, [
+    "id",
+    "verificationId",
+    "verification_id",
+    "businessVerificationId",
+    "business_verification_id",
+    "businessVerificationRecordId",
+    "business_verification_record_id",
+    "reviewId",
+    "review_id",
+    "recordId",
+    "record_id",
+  ]);
   const businessIdValue = pickFirstMatchingValue(nestedSources, ["businessId", "business_id", "businessID", "business_id_fk", "id"]);
 
   return {

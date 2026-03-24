@@ -373,7 +373,9 @@ const OperationsConsole = () => {
       return;
     }
 
-    const verificationRecordId = selectedQueueItem.review?.id;
+    const verificationRecordId = selectedQueueItem.review?.id
+      ?? selectedQueueItem.review?.businessId
+      ?? selectedQueueItem.business.id;
     if (!verificationRecordId) {
       toast.error("No verification record was found for this business.");
       return;

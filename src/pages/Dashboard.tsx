@@ -83,6 +83,24 @@ const toPromotionPage = (payload: PageResponse<Promotion> | Promotion[] | null |
   };
 };
 
+const getPromotionRejectionReason = (promotion: Promotion): string => {
+  const candidateValues = [
+    promotion.rejectionReason,
+    promotion.verificationNotes,
+    (promotion as Promotion & { reason?: string }).reason,
+    (promotion as Promotion & { note?: string }).note,
+    (promotion as Promotion & { message?: string }).message,
+    (promotion as Promotion & { rejection_note?: string }).rejection_note,
+    (promotion as Promotion & { rejection_reason?: string }).rejection_reason,
+  ];
+
+  const resolvedReason = candidateValues.find(
+    (value) => typeof value === "string" && value.trim().length > 0
+  );
+
+  return resolvedReason?.trim() ?? "No reason provided.";
+}
+
 const PromotionModerationCard = ({
   promotion,
   reason,
@@ -449,7 +467,7 @@ const Dashboard = () => {
                     {rejectedPromotions.map((promotion) => (
                       <div key={promotion.id} className="rounded-lg border border-border p-4">
                         <p className="font-semibold">{promotion.title}</p>
-                        <p className="text-sm text-muted-foreground">Denied: {promotion.rejectionReason ?? "No reason provided."}</p>
+                        <p className="text-sm text-muted-foreground">Denied: {getPromotionRejectionReason(promotion)}</p>
                         <Badge variant="destructive" className="mt-2">REJECTED</Badge>
                       </div>
                     ))}
@@ -633,7 +651,7 @@ const Dashboard = () => {
                       <div key={promotion.id} className="rounded-lg border border-border p-4">
                         <p className="font-semibold">{promotion.title}</p>
                         <p className="text-sm text-muted-foreground">Rejected for business #{promotion.businessId}.</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Reason: {promotion.rejectionReason ?? promotion.verificationNotes ?? "No reason provided."}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Reason: {getPromotionRejectionReason(promotion)}</p>
                         <Badge variant="destructive" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
                       </div>
                     ))}
