@@ -365,8 +365,11 @@ const OperationsConsole = () => {
       return;
     }
 
-    if (!note.trim()) {
-      toast.error("Please provide a reviewer note.");
+    const normalizedNote = note.trim();
+    const requiresNote = action !== "APPROVED";
+
+    if (requiresNote && !normalizedNote) {
+      toast.error(action === "REJECTED" ? "Please provide a rejection reason." : "Please provide a reviewer note.");
       return;
     }
 
@@ -380,15 +383,15 @@ const OperationsConsole = () => {
 
     try {
       if (action === "APPROVED") {
-        await api.approveBusinessVerification(verificationRecordId, note.trim());
+        await api.approveBusinessVerification(verificationRecordId);
       }
 
       if (action === "REJECTED") {
-        await api.rejectBusinessVerification(verificationRecordId, note.trim());
+        await api.rejectBusinessVerification(verificationRecordId, normalizedNote);
       }
 
       if (action === "MORE_DOCUMENTS_REQUESTED") {
-        await api.requestAdditionalBusinessVerificationDocuments(verificationRecordId, note.trim());
+        await api.requestAdditionalBusinessVerificationDocuments(verificationRecordId, normalizedNote);
       }
 
       setQueueItems((previous) => previous.map((item) => {
@@ -397,10 +400,10 @@ const OperationsConsole = () => {
         }
 
         const updatedStatus = action;
-        const localHistoryItem: ReviewerHistoryItem = {
+         const localHistoryItem: ReviewerHistoryItem = {
           id: `local-${Date.now()}`,
           status: updatedStatus,
-          note: note.trim(),
+          note: normalizedNote || "No Reviewer Note Provided.",
           actor: "You",
           createdAt: new Date().toISOString(),
         };
@@ -660,12 +663,12 @@ const OperationsConsole = () => {
 
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label htmlFor="approve-note">Approve · reviewer note</Label>
+                          <Label htmlFor="approve-note">Approve · optional reviewer note</Label>
                           <Textarea
                             id="approve-note"
                             value={approveNote}
                             onChange={(event) => setApproveNote(event.target.value)}
-                            placeholder="Explain why this business is approved."
+                            placeholder="Optional: add internal context for this approval."
                             rows={3}
                           />
                           <Button

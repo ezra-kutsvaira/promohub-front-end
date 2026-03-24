@@ -943,10 +943,10 @@ export const api = {
 
     throw new Error("Unable to load business verification.");
   },
-  approveBusinessVerification: (id: number | string, note?: string) => apiRequestWithFallback<void>(
+  approveBusinessVerification: (id: number | string) => apiRequestWithFallback<void>(
     `/api/business-verification/${id}/approve`,
     `/api/business-verifications/${id}/approve`,
-    { method: "POST", body: JSON.stringify(note ? { note } : {}) }
+    { method: "POST"}
   ),
   rejectBusinessVerification: (id: number | string, reason?: string) => apiRequestWithFallback<void>(
     // `/api/business-verification/${id}/reject`,
