@@ -293,14 +293,27 @@ const Dashboard = () => {
     }).length;
   }, [savedPromotionDetails]);
 
-  const createdPromotion = (location.state as { createdPromotion?: Promotion } | null)?.createdPromotion;
+  const locationState = (location.state as { createdPromotion?: Promotion; resubmittedPromotion?: Promotion } | null);
+  const createdPromotion = locationState?.createdPromotion;
+  const resubmittedPromotion = locationState?.resubmittedPromotion;
   const promotionsWithNewlyCreated = useMemo(() => {
-    if (!createdPromotion || businessPromotions.some((item) => item.id === createdPromotion.id)) {
-      return businessPromotions;
+    const nextPromotions = [...businessPromotions];
+
+    if (createdPromotion && !nextPromotions.some((item) => item.id === createdPromotion.id)) {
+      nextPromotions.unshift(createdPromotion);
     }
 
-    return [createdPromotion, ...businessPromotions];
-  }, [businessPromotions, createdPromotion]);
+    if (resubmittedPromotion) {
+      const existingIndex = nextPromotions.findIndex((item) => item.id === resubmittedPromotion.id);
+      if (existingIndex >= 0) {
+        nextPromotions[existingIndex] = { ...nextPromotions[existingIndex], ...resubmittedPromotion };
+      } else {
+        nextPromotions.unshift(resubmittedPromotion);
+      }
+    }
+
+    return nextPromotions;
+  }, [businessPromotions, createdPromotion, resubmittedPromotion]);
 
   const pendingPromotions = promotionsWithNewlyCreated.filter(isPendingPromotion);
   const approvedPromotions = promotionsWithNewlyCreated.filter(isApprovedPromotion);
@@ -468,6 +481,9 @@ const Dashboard = () => {
                       <div key={promotion.id} className="rounded-lg border border-border p-4">
                         <p className="font-semibold">{promotion.title}</p>
                         <p className="text-sm text-muted-foreground">Denied: {getPromotionRejectionReason(promotion)}</p>
+                        <Button size="sm" variant="outline" className="mt-3" asChild>
+                          <Link to={`/promotions/${promotion.id}/edit`}>Edit & re-submit</Link>
+                        </Button>
                         <Badge variant="destructive" className="mt-2">REJECTED</Badge>
                       </div>
                     ))}

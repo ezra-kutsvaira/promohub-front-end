@@ -17,6 +17,7 @@ import SavedPromotions from "./pages/SavedPromotions";
 import AccountSettings from "./pages/AccountSettings";
 import AdminBusinessVerification from "./pages/OperationsConsole";
 import CreatePromotion from "./pages/CreatePromotion";
+import EditPromotion from "./pages/EditPromotion";
 import { RequireAuth, RequireRole } from "./components/RouteGuard";
 
 const queryClient = new QueryClient();
@@ -70,6 +71,16 @@ const App = () => {
                 <RequireAuth>
                   <RequireRole allowed={["BUSINESS_OWNER"]}>
                     <CreatePromotion />
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/promotions/:id/edit"
+              element={
+                <RequireAuth>
+                  <RequireRole allowed={["BUSINESS_OWNER"]}>
+                    <EditPromotion />
                   </RequireRole>
                 </RequireAuth>
               }
