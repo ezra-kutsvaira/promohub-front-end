@@ -67,23 +67,36 @@ const Index = () => {
     let isMounted = true;
     const fetchApprovedPromotions = async () => {
       const approvedQueryCandidates = [
-        { verificationStatus: "APPROVED", page: "0", size: "12" },
-        { status: "APPROVED", page: "0", size: "12" },
+        { verificationStatus: "APPROVED", page: "0", size: "60" },
+        { status: "APPROVED", page: "0", size: "60" },
+        { verificationStatus: "ACTIVE", page: "0", size: "60" },
+        { status: "ACTIVE", page: "0", size: "60" },
+        { verificationStatus: "APPROVED", page: "0", limit: "60" },
+        { status: "APPROVED", page: "0", limit: "60" },
+        { verificationStatus: "ACTIVE", page: "0", limit: "60" },
+        { status: "ACTIVE", page: "0", limit: "60" },
       ];
+
+      let bestMatch: Promotion[] = [];
 
       for (const params of approvedQueryCandidates) {
         try {
           const response = await api.getPromotions(params);
           const promotions = Array.isArray(response) ? response : response.content;
-          if (promotions.length > 0) {
-            return promotions;
+          if (promotions.length > bestMatch.length) {
+            bestMatch = promotions;
           }
         } catch {
           // Try the next known status parameter name.
         }
       }
 
-      return [] as Promotion[];
+      if (bestMatch.length > 0) {
+        return bestMatch;
+      }
+
+      const fallbackResponse = await api.getPromotions({ page: "0", size: "120" });
+      return Array.isArray(fallbackResponse) ? fallbackResponse : fallbackResponse.content;
     };
 
     const loadData = async () => {
