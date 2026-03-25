@@ -714,8 +714,17 @@ const toBusinessVerificationRequestBodies = (payload: BusinessVerificationReques
 const toStatusParam = (status: string): string =>
   status.trim().replace(/[-\s]+/g, "_").toUpperCase();
 
-const getPromotionStatus = (promotion: Promotion): string =>
-  toStatusParam(promotion.verificationStatus ?? promotion.status ?? "");
+const getPromotionStatus = (promotion: Promotion): string => {
+  const verificationStatus = toStatusParam(promotion.verificationStatus ?? "");
+  const status = toStatusParam(promotion.status ?? "");
+  const statuses = [verificationStatus, status].filter(Boolean);
+
+  if (statuses.includes("REJECTED")) return "REJECTED";
+  if (statuses.includes("APPROVED") || statuses.includes("ACTIVE")) return "APPROVED";
+  if (statuses.includes("PENDING") || statuses.includes("SUBMITTED")) return "PENDING";
+
+  return verificationStatus || status;
+};
 
 const statusAliases: Record<string, string[]> = {
   PENDING: ["PENDING", "SUBMITTED"],
