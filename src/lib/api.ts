@@ -82,6 +82,16 @@ const isMethodNotSupportedError = (error: unknown) => {
   );
 };
 
+const isPathParameterTypeMismatchError = (error: unknown) => {
+  if (!(error instanceof Error)) return false;
+  const normalizedMessage = error.message.toLowerCase();
+  return (
+    normalizedMessage.includes("failed to convert value of type") ||
+    normalizedMessage.includes("method parameter") && normalizedMessage.includes("required type") ||
+    normalizedMessage.includes("input string: \"me\"")
+  );
+};
+
 
 const parseJson = async (response: Response) => {
   const text = await response.text();
@@ -182,7 +192,8 @@ export const apiBlobRequest = async (path: string, options: RequestOptions = {})
     headers.set("Authorization", `Bearer ${session.accessToken}`);
   }
 
-  let response = await performRequest(buildUrl(path), { ...options, headers });
+
+  const response = await performRequest(buildUrl(path), { ...options, headers });
 
   if (response.status === 401 && session?.refreshToken && !options.skipRefresh) {
     const refreshed = await refreshSession(session.refreshToken);
@@ -233,8 +244,9 @@ const apiRequestWithAlternatives = async <T>(
       lastError = error;
       const shouldRetryForStatus = error instanceof ApiError && retryStatuses.includes(error.status);
       const shouldRetryForNotFoundMessage = isNotFoundError(error);
+      const shouldRetryForPathParamMismatch = isPathParameterTypeMismatchError(error);
       const hasMoreCandidates = index < paths.length - 1;
-       if ((shouldRetryForStatus || shouldRetryForNotFoundMessage) && hasMoreCandidates) {
+       if ((shouldRetryForStatus || shouldRetryForNotFoundMessage || shouldRetryForPathParamMismatch) && hasMoreCandidates) {
         continue;
       }
       throw error;
@@ -1055,14 +1067,64 @@ export const api = {
 
   createBusiness: (payload: BusinessCreateRequest) => apiRequest<Business>(`/api/businesses`, { method: "POST", body: JSON.stringify(payload) }),
   uploadBusinessDocument: async (documentType: BusinessDocumentType, file: File) => {
-    const body = new FormData();
-    body.append("file", file);
+    const uploadPaths = [
+      "/api/businesses/documents/upload",
+      "/api/business-documents/upload",
+      "/api/business-verification/documents/upload",
+      "/api/business-verifications/documents/upload",
+    ];
 
-    return apiRequest<UploadedBusinessDocument>(
-      appendQueryParam("/api/businesses/documents/upload", "documentType", documentType),
-      { method: "POST", body }
-    );
+  const queryPathCandidates = uploadPaths.map((path) => appendQueryParam(path, "documentType", documentType));
+    const bodyKeyCandidates = ["file", "document", "documentFile"];
+
+    let lastError: unknown;
+
+    for (const path of queryPathCandidates) {
+      for (const bodyKey of bodyKeyCandidates) {
+        try {
+          const body = new FormData();
+          body.append(bodyKey, file);
+          return await apiRequest<UploadedBusinessDocument>(path, { method: "POST", body });
+        } catch (error) {
+          lastError = error;
+          const shouldRetry =
+            isNotFoundError(error) ||
+            isMethodNotSupportedError(error) ||
+            (error instanceof ApiError && [400, 404, 405, 415].includes(error.status));
+
+          if (!shouldRetry) {
+            throw error;
+          }
+        }
+      }
+    }
+
+    for (const path of uploadPaths) {
+      try {
+        const body = new FormData();
+        body.append("file", file);
+        body.append("documentType", documentType);
+        return await apiRequest<UploadedBusinessDocument>(path, { method: "POST", body });
+      } catch (error) {
+        lastError = error;
+        const shouldRetry =
+          isNotFoundError(error) ||
+          isMethodNotSupportedError(error) ||
+          (error instanceof ApiError && [400, 404, 405, 415].includes(error.status));
+
+        if (!shouldRetry) {
+          throw error;
+        }
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to upload business verification document.");
   },
+  
   getBusinessDocumentBlob: (ownerId: number, fileName: string) =>
     apiBlobRequest(`/api/businesses/documents/${ownerId}/${encodeURIComponent(fileName)}`),
   getBusiness: (id: number | string) => apiRequest<Business>(`/api/businesses/${id}`),
