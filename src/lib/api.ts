@@ -896,6 +896,7 @@ export const api = {
       `${basePath}/${id}/resubmit`,
       `${basePath}/${id}/submit`,
       `${basePath}/${id}/verification/resubmit`,
+      `${basePath}/${id}/verification/submit`,
     ]);
 
     const normalizedPromotionId = Number(id);
@@ -922,15 +923,15 @@ export const api = {
         ]
       : [undefined];
 
+    const methods = ["POST", "PATCH", "PUT"];
+
     let lastError: unknown;
     for (const bodyCandidate of bodyCandidates) {
       try {
-        return await apiRequestWithAlternatives<Promotion>(
+        return await apiRequestWithMethodAndPathAlternatives<Promotion>(
           submitPaths,
-          {
-            method: "POST",
-            ...(bodyCandidate ? { body: JSON.stringify(bodyCandidate) } : {}),
-          },
+          methods,
+          bodyCandidate ? JSON.stringify(bodyCandidate) : undefined,
           [400, 404, 405]
         );
       } catch (error) {
@@ -939,7 +940,11 @@ export const api = {
     }
 
     if (payload) {
-      return api.updatePromotion(id, payload);
+      return api.updatePromotion(id, {
+        ...payload,
+        status: "PENDING",
+        verificationStatus: "PENDING",
+      } as PromotionUpsertRequest);
     }
 
     if (lastError instanceof Error) {
