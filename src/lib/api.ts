@@ -866,14 +866,27 @@ export const api = {
       `${basePath}/${id}/verification/resubmit`,
     ]);
 
+    const normalizedPromotionId = Number(id);
+    const promotionIdFields = Number.isNaN(normalizedPromotionId)
+      ? {
+          promotionId: id,
+          promotion_id: id,
+          id,
+        }
+      : {
+          promotionId: normalizedPromotionId,
+          promotion_id: normalizedPromotionId,
+          id: normalizedPromotionId,
+        };
+
     const bodyCandidates = payload
       ? [
-          payload,
-          { ...payload, status: "PENDING" },
-          { ...payload, status: "SUBMITTED" },
-          { ...payload, verificationStatus: "PENDING" },
-          { ...payload, status: "PENDING", verificationStatus: "PENDING" },
-          { ...payload, status: "SUBMITTED", verificationStatus: "PENDING" },
+          { ...payload, ...promotionIdFields },
+          { ...payload, ...promotionIdFields, status: "PENDING" },
+          { ...payload, ...promotionIdFields, status: "SUBMITTED" },
+          { ...payload, ...promotionIdFields, verificationStatus: "PENDING" },
+          { ...payload, ...promotionIdFields, status: "PENDING", verificationStatus: "PENDING" },
+          { ...payload, ...promotionIdFields, status: "SUBMITTED", verificationStatus: "PENDING" },
         ]
       : [undefined];
 
