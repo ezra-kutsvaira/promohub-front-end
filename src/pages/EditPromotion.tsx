@@ -119,7 +119,7 @@ const EditPromotion = () => {
         return;
       }
 
-      const updatedPromotion = await api.updatePromotion(id, {
+      const updatedPromotion = await api.resubmitPromotion(id, {
         businessId: business.id,
         categoryCode,
         title,
