@@ -844,16 +844,48 @@ export const api = {
     { method: "POST", body: JSON.stringify(payload) },
     [404]
   ),
-  updatePromotion: (id: string | number, payload: PromotionUpsertRequest) =>
-    apiRequestWithMethodAndPathAlternatives<Promotion>(
-      [
-        `${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`,
-        `${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`,
-        `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}`,
-      ],
-      ["PATCH", "PUT"],
-      JSON.stringify(payload)
-    ),
+  updatePromotion: async (id: string | number, payload: PromotionUpsertRequest) => {
+    const normalizedPromotionId = Number(id);
+    const promotionIdFields = Number.isNaN(normalizedPromotionId)
+      ? {
+          promotionId: id,
+          promotion_id: id,
+          id,
+        }
+      : {
+          promotionId: normalizedPromotionId,
+          promotion_id: normalizedPromotionId,
+          id: normalizedPromotionId,
+        };
+
+    const bodyCandidates = [
+      payload,
+      { ...payload, ...promotionIdFields },
+    ];
+
+    let lastError: unknown;
+    for (const bodyCandidate of bodyCandidates) {
+      try {
+        return await apiRequestWithMethodAndPathAlternatives<Promotion>(
+          [
+            `${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`,
+            `${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`,
+            `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}`,
+          ],
+          ["PATCH", "PUT"],
+          JSON.stringify(bodyCandidate),
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to update promotion.");
+  },
   resubmitPromotion: async (id: string | number, payload?: PromotionUpsertRequest) => {
     const basePaths = [
       PUBLIC_PROMOTIONS_BASE_PATH,
