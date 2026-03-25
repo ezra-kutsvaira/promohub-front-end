@@ -791,7 +791,12 @@ export const api = {
     [404]
   ),
   deletePromotion: (id: string | number) => apiRequestWithAlternatives<void>(
-    [`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`, `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}`],
+     [
+      `${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`,
+      `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}`,
+      `${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`,
+      `/api/admin/promotions/${id}`,
+    ],
     { method: "DELETE" },
     [404]
   ),
