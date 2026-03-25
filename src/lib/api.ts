@@ -208,6 +208,52 @@ const apiRequestWithAlternatives = async <T>(
   throw new Error("Request failed");
 };
 
+const apiRequestWithMethodAndPathAlternatives = async <T>(
+  paths: string[],
+  methods: string[],
+  body?: string,
+  retryStatuses: number[] = [404, 405]
+): Promise<T> => {
+  if (paths.length === 0) {
+    throw new Error("No API paths provided");
+  }
+
+  if (methods.length === 0) {
+    throw new Error("No HTTP methods provided");
+  }
+
+  let lastError: unknown;
+
+  for (const method of methods) {
+    for (let index = 0; index < paths.length; index += 1) {
+      try {
+        return await apiRequest<T>(paths[index], { method, ...(body ? { body } : {}) });
+      } catch (error) {
+        lastError = error;
+        const shouldRetryForStatus = error instanceof ApiError && retryStatuses.includes(error.status);
+        const shouldRetryForNotFoundMessage = isNotFoundError(error);
+        const hasMoreCandidates = index < paths.length - 1;
+
+        if ((shouldRetryForStatus || shouldRetryForNotFoundMessage) && hasMoreCandidates) {
+          continue;
+        }
+
+        if ((shouldRetryForStatus || shouldRetryForNotFoundMessage) && method !== methods[methods.length - 1]) {
+          break;
+        }
+
+        throw error;
+      }
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error("Request failed");
+};
+
 export type AuthPayload = {
   accessToken: string;
   refreshToken: string;
@@ -785,11 +831,65 @@ export const api = {
     { method: "POST", body: JSON.stringify(payload) },
     [404]
   ),
-  updatePromotion: (id: string | number, payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(
-    [`${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`, `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}`],
-    { method: "PUT", body: JSON.stringify(payload) },
-    [404]
-  ),
+  updatePromotion: (id: string | number, payload: PromotionUpsertRequest) =>
+    apiRequestWithMethodAndPathAlternatives<Promotion>(
+      [
+        `${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`,
+        `${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`,
+        `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}`,
+      ],
+      ["PATCH", "PUT"],
+      JSON.stringify(payload)
+    ),
+  resubmitPromotion: async (id: string | number, payload?: PromotionUpsertRequest) => {
+    const basePaths = [
+      PUBLIC_PROMOTIONS_BASE_PATH,
+      BUSINESS_PROMOTIONS_BASE_PATH,
+      BUSINESS_PROMOTIONS_ALIAS_BASE_PATH,
+    ];
+    const submitPaths = basePaths.flatMap((basePath) => [
+      `${basePath}/${id}/resubmit`,
+      `${basePath}/${id}/submit`,
+      `${basePath}/${id}/verification/resubmit`,
+    ]);
+
+    const bodyCandidates = payload
+      ? [
+          payload,
+          { ...payload, status: "PENDING" },
+          { ...payload, status: "SUBMITTED" },
+          { ...payload, verificationStatus: "PENDING" },
+          { ...payload, status: "PENDING", verificationStatus: "PENDING" },
+          { ...payload, status: "SUBMITTED", verificationStatus: "PENDING" },
+        ]
+      : [undefined];
+
+    let lastError: unknown;
+    for (const bodyCandidate of bodyCandidates) {
+      try {
+        return await apiRequestWithAlternatives<Promotion>(
+          submitPaths,
+          {
+            method: "POST",
+            ...(bodyCandidate ? { body: JSON.stringify(bodyCandidate) } : {}),
+          },
+          [400, 404, 405]
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (payload) {
+      return api.updatePromotion(id, payload);
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to re-submit promotion.");
+  },
   deletePromotion: (id: string | number) => apiRequestWithAlternatives<void>(
      [
       `${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`,
