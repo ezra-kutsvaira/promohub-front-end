@@ -797,16 +797,97 @@ const matchesRequestedStatus = (promotion: Promotion, requestedStatus: string): 
   return aliases.includes(normalizedPromotionStatus);
 };
 
+const toRegisterRequestBodies = (payload: RegisterRequest) => [
+  {
+    fullName: payload.fullName,
+    email: payload.email,
+    password: payload.password,
+    role: payload.role,
+  },
+  {
+    name: payload.fullName,
+    email: payload.email,
+    password: payload.password,
+    role: payload.role,
+  },
+  {
+    full_name: payload.fullName,
+    email: payload.email,
+    password: payload.password,
+    role: payload.role,
+  },
+  {
+    fullName: payload.fullName,
+    email: payload.email,
+    password: payload.password,
+    userRole: payload.role,
+  },
+  {
+    full_name: payload.fullName,
+    email: payload.email,
+    password: payload.password,
+    user_role: payload.role,
+  },
+];
+
+const isEmailAlreadyRegisteredError = (error: unknown) => {
+  if (!(error instanceof Error)) return false;
+  const normalizedMessage = error.message.toLowerCase();
+  return (
+    normalizedMessage.includes("already registered") ||
+    normalizedMessage.includes("already exists") ||
+    normalizedMessage.includes("email exists") ||
+    normalizedMessage.includes("duplicate") ||
+    normalizedMessage.includes("email in use")
+  );
+};
+
 
 export const api = {
   login: (payload: LoginRequest) => apiRequestWithAlternatives<AuthPayload>(
     ["/api/auth/login", "/api/auth/signin", "/api/auth/sign-in", "/auth/login", "/auth/signin"],
     { method: "POST", body: JSON.stringify(payload), skipAuth: true }
   ),
-  register: (payload: RegisterRequest) => apiRequestWithAlternatives<AuthPayload>(
-    ["/api/auth/register", "/api/auth/signup", "/api/users/register", "/auth/register", "/auth/signup"],
-    { method: "POST", body: JSON.stringify(payload), skipAuth: true }
-  ),
+  register: async (payload: RegisterRequest) => {
+    const paths = ["/api/auth/register", "/api/auth/signup", "/api/users/register", "/auth/register", "/auth/signup"];
+    const requestBodies = toRegisterRequestBodies(payload);
+
+    let lastError: unknown;
+    for (let pathIndex = 0; pathIndex < paths.length; pathIndex += 1) {
+      const path = paths[pathIndex];
+
+      for (let bodyIndex = 0; bodyIndex < requestBodies.length; bodyIndex += 1) {
+        try {
+          return await apiRequest<AuthPayload>(path, {
+            method: "POST",
+            body: JSON.stringify(requestBodies[bodyIndex]),
+            skipAuth: true,
+          });
+        } catch (error) {
+          lastError = error;
+          const hasMoreCandidates = pathIndex < paths.length - 1 || bodyIndex < requestBodies.length - 1;
+          const shouldRetry =
+            isNotFoundError(error) ||
+            isMethodNotSupportedError(error) ||
+            isPathParameterTypeMismatchError(error) ||
+            (error instanceof ApiError && error.status === 409) ||
+            isEmailAlreadyRegisteredError(error);
+
+          if (shouldRetry && hasMoreCandidates) {
+            continue;
+          }
+
+          throw error;
+        }
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Registration failed.");
+  },
   logout: (refreshToken: string) => apiRequest<void>("/api/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
   requestPasswordReset: (email: string) => apiRequest<void>("/api/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email }), skipAuth: true }),
   confirmPasswordReset: (payload: { token: string; newPassword: string; confirmNewPassword: string }) => apiRequest<void>("/api/auth/password-reset/confirm", { method: "POST", body: JSON.stringify(payload), skipAuth: true }),
