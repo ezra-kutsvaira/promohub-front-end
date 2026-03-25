@@ -140,7 +140,9 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
   const session = loadSession();
   const headers = new Headers(options.headers ?? {});
 
-  if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
   if (!options.skipAuth && session?.accessToken) headers.set("Authorization", `Bearer ${session.accessToken}`);
 
   const response = await performRequest(buildUrl(path), { ...options, headers });
@@ -170,6 +172,33 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
   }
 
   return payload as T;
+};
+
+export const apiBlobRequest = async (path: string, options: RequestOptions = {}): Promise<Blob> => {
+  const session = loadSession();
+  const headers = new Headers(options.headers ?? {});
+
+  if (!options.skipAuth && session?.accessToken) {
+    headers.set("Authorization", `Bearer ${session.accessToken}`);
+  }
+
+  let response = await performRequest(buildUrl(path), { ...options, headers });
+
+  if (response.status === 401 && session?.refreshToken && !options.skipRefresh) {
+    const refreshed = await refreshSession(session.refreshToken);
+    if (refreshed) {
+      saveSession(refreshed);
+      return apiBlobRequest(path, { ...options, skipRefresh: true });
+    }
+    clearSession();
+  }
+
+  if (!response.ok) {
+    const payload = await parseJson(response);
+    throw new ApiError(getErrorMessageFromPayload(payload, response.statusText), response.status);
+  }
+
+  return response.blob();
 };
 
 const apiRequestWithFallback = async <T>(
@@ -304,6 +333,23 @@ export type BusinessCreateRequest = {
   logoUrl: string;
   city: string;
   country: string;
+  taxClearanceDocumentUrl: string;
+  certifiedRegistrantIdDocumentUrl: string;
+  businessRegistrationCertificateUrl?: string;
+  proofOfBusinessAddressDocumentUrl?: string;
+};
+
+export type BusinessDocumentType =
+  | "TAX_CLEARANCE"
+  | "CERTIFIED_REGISTRANT_ID"
+  | "BUSINESS_REGISTRATION_CERTIFICATE"
+  | "PROOF_OF_BUSINESS_ADDRESS"
+  | "OPERATING_LICENSE";
+
+export type UploadedBusinessDocument = {
+  documentType: BusinessDocumentType;
+  fileName: string;
+  documentUrl: string;
 };
 
 export type Business = {
@@ -1008,6 +1054,17 @@ export const api = {
   disableMfa: (code: string) => apiRequest<void>("/api/users/mfa/disable", { method: "POST", body: JSON.stringify({ code }) }),
 
   createBusiness: (payload: BusinessCreateRequest) => apiRequest<Business>(`/api/businesses`, { method: "POST", body: JSON.stringify(payload) }),
+  uploadBusinessDocument: async (documentType: BusinessDocumentType, file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+
+    return apiRequest<UploadedBusinessDocument>(
+      appendQueryParam("/api/businesses/documents/upload", "documentType", documentType),
+      { method: "POST", body }
+    );
+  },
+  getBusinessDocumentBlob: (ownerId: number, fileName: string) =>
+    apiBlobRequest(`/api/businesses/documents/${ownerId}/${encodeURIComponent(fileName)}`),
   getBusiness: (id: number | string) => apiRequest<Business>(`/api/businesses/${id}`),
   getBusinesses: () => apiRequest<PageResponse<Business> | Business[]>("/api/businesses"),
   getCategories: () => apiRequest<Category[]>("/api/categories", { skipAuth: true }),

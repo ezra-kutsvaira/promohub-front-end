@@ -611,6 +611,24 @@ const OperationsConsole = () => {
                       selectedQueueItem,
                       ["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url", "documentUrl", "document_url", "supportingDocumentUrl"],
                     );
+                    const documentLinks = [
+                      {
+                        label: "Tax clearance",
+                        value: getVerificationFieldValue(selectedQueueItem, ["taxClearanceDocumentUrl", "tax_clearance_document_url"]),
+                      },
+                      {
+                        label: "Certified registrant ID",
+                        value: getVerificationFieldValue(selectedQueueItem, ["certifiedRegistrantIdDocumentUrl", "certified_registrant_id_document_url"]),
+                      },
+                      {
+                        label: "Business registration certificate",
+                        value: getVerificationFieldValue(selectedQueueItem, ["businessRegistrationCertificateUrl", "business_registration_certificate_url"]),
+                      },
+                      {
+                        label: "Proof of business address",
+                        value: getVerificationFieldValue(selectedQueueItem, ["proofOfBusinessAddressDocumentUrl", "proof_of_business_address_document_url"]),
+                      },
+                    ].filter((entry) => Boolean(entry.value));
 
                     return (
                     <>
@@ -642,7 +660,39 @@ const OperationsConsole = () => {
 
                       <div className="rounded-md border p-3 bg-muted/25">
                         <p className="text-sm font-medium mb-2">Supporting documents preview</p>
-                        {supportingDocumentsUrl ? (
+                        {documentLinks.length > 0 ? (
+                          <div className="space-y-2">
+                            {documentLinks.map((documentLink) => (
+                              <div key={documentLink.label} className="space-y-1">
+                                <p className="text-xs text-muted-foreground">{documentLink.label}</p>
+                                <a
+                                  href={documentLink.value}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-primary underline break-all text-sm"
+                                >
+                                  {documentLink.value}
+                                </a>
+                              </div>
+                            ))}
+                            {supportingDocumentsUrl && (
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground">Legacy supporting document URL</p>
+                                <a
+                                  href={supportingDocumentsUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-primary underline break-all text-sm"
+                                >
+                                  {supportingDocumentsUrl}
+                                </a>
+                              </div>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Open link in a new tab to inspect uploaded files.
+                            </p>
+                          </div>
+                        ) : supportingDocumentsUrl ? (
                           <div className="space-y-2">
                             <a
                               href={supportingDocumentsUrl}
@@ -652,9 +702,6 @@ const OperationsConsole = () => {
                             >
                               {supportingDocumentsUrl}
                             </a>
-                            <p className="text-xs text-muted-foreground">
-                              Open link in a new tab to inspect uploaded files.
-                            </p>
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">No supporting documents were included.</p>
