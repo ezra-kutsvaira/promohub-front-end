@@ -71,6 +71,17 @@ const isNotFoundError = (error: unknown) => {
   return normalizedMessage === "not found" || normalizedMessage.includes("404") || normalizedMessage.includes("no static resource");
 };
 
+const isMethodNotSupportedError = (error: unknown) => {
+  if (!(error instanceof Error)) return false;
+  const normalizedMessage = error.message.toLowerCase();
+  return (
+    normalizedMessage.includes("method not allowed") ||
+    normalizedMessage.includes("request method") && normalizedMessage.includes("not supported") ||
+    normalizedMessage.includes("http request method not supported") ||
+    normalizedMessage.includes("405")
+  );
+};
+
 
 const parseJson = async (response: Response) => {
   const text = await response.text();
@@ -232,13 +243,15 @@ const apiRequestWithMethodAndPathAlternatives = async <T>(
         lastError = error;
         const shouldRetryForStatus = error instanceof ApiError && retryStatuses.includes(error.status);
         const shouldRetryForNotFoundMessage = isNotFoundError(error);
+        const shouldRetryForMethodMessage = isMethodNotSupportedError(error);
+        const shouldRetry = shouldRetryForStatus || shouldRetryForNotFoundMessage || shouldRetryForMethodMessage;
         const hasMoreCandidates = index < paths.length - 1;
 
-        if ((shouldRetryForStatus || shouldRetryForNotFoundMessage) && hasMoreCandidates) {
+        if (shouldRetry && hasMoreCandidates) {
           continue;
         }
 
-        if ((shouldRetryForStatus || shouldRetryForNotFoundMessage) && method !== methods[methods.length - 1]) {
+        if (shouldRetry && method !== methods[methods.length - 1]) {
           break;
         }
 
