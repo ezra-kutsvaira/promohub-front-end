@@ -7,7 +7,7 @@ import { BadgeCheck, FileCheck, Shield, TrendingUp } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { api, type Category } from "@/lib/api";
+import { api, type BusinessDocumentType, type Category } from "@/lib/api";
 
 type RegisterRole  = Exclude<UserRole, "ADMIN">; 
 
@@ -18,6 +18,36 @@ const Register = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryCode, setSelectedCategoryCode] = useState("");
+
+  const allowedMimeTypes = ["application/pdf", "image/png", "image/jpeg"];
+  const maxFileSizeBytes = 10 * 1024 * 1024;
+
+  const validateDocumentFile = (file: File, label: string) => {
+    if (!allowedMimeTypes.includes(file.type)) {
+      throw new Error(`${label}: only PDF, PNG, JPG, and JPEG files are allowed.`);
+    }
+
+    if (file.size > maxFileSizeBytes) {
+      throw new Error(`${label}: file size must be 10MB or less.`);
+    }
+  };
+
+  const uploadDocument = async (
+    documentType: BusinessDocumentType,
+    file: File | null,
+    { required, label }: { required: boolean; label: string }
+  ) => {
+    if (!file || file.size === 0) {
+      if (required) {
+        throw new Error(`${label} is required.`);
+      }
+      return undefined;
+    }
+
+    validateDocumentFile(file, label);
+    const uploaded = await api.uploadBusinessDocument(documentType, file);
+    return uploaded.documentUrl;
+  };
 
 
   useEffect(() => {
@@ -45,6 +75,30 @@ const Register = () => {
       const authResponse = await register({ fullName, email, password, role });
 
       if (role === "BUSINESS_OWNER") {
+        const taxClearanceDocumentUrl = await uploadDocument(
+          "TAX_CLEARANCE",
+          (formData.get("tax-clearance-file") as File) ?? null,
+          { required: true, label: "Tax clearance document" }
+        );
+        const certifiedRegistrantIdDocumentUrl = await uploadDocument(
+          "CERTIFIED_REGISTRANT_ID",
+          (formData.get("certified-registrant-id-file") as File) ?? null,
+          { required: true, label: "Certified registrant ID document" }
+        );
+        const businessRegistrationCertificateUrl = await uploadDocument(
+          "BUSINESS_REGISTRATION_CERTIFICATE",
+          (formData.get("business-registration-certificate-file") as File) ?? null,
+          { required: false, label: "Business registration certificate" }
+        );
+        const proofOfBusinessAddressDocumentUrl = await uploadDocument(
+          "PROOF_OF_BUSINESS_ADDRESS",
+          (formData.get("proof-of-business-address-file") as File) ?? null,
+          { required: false, label: "Proof of business address document" }
+        );
+        if (!taxClearanceDocumentUrl || !certifiedRegistrantIdDocumentUrl) {
+          throw new Error("Required business verification documents are missing.");
+        }
+
         const businessPayload = {
           ownerId: authResponse.userId,
           businessName: String(formData.get("business-name") ?? ""),
@@ -58,19 +112,15 @@ const Register = () => {
           logoUrl: String(formData.get("logo-url") ?? ""),
           city: String(formData.get("city") ?? ""),
           country: String(formData.get("country") ?? ""),
+          taxClearanceDocumentUrl,
+          certifiedRegistrantIdDocumentUrl,
+          businessRegistrationCertificateUrl,
+          proofOfBusinessAddressDocumentUrl,
         };
 
-        const business = await api.createBusiness(businessPayload);
+        await api.createBusiness(businessPayload);
 
-        await api.requestBusinessVerification({
-          businessId: business.id,
-          vatNumber: String(formData.get("vat-number") ?? ""),
-          tinNumber: String(formData.get("tin-number") ?? ""),
-          ownerNationalId: String(formData.get("owner-national-id") ?? ""),
-          supportingDocumentsUrl: String(formData.get("supporting-documents-url") ?? ""),
-        });
-
-        toast.success("Thanks! Your verification request is now queued for review.");
+        toast.success("Thanks! Your business registration has been submitted for review.");
       } else {
         toast.success("Your account has been created.");
       }
@@ -236,30 +286,30 @@ const Register = () => {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground" htmlFor="vat-number">
-                          VAT number
+                        <label className="text-sm font-medium text-foreground" htmlFor="tax-clearance-file">
+                          Tax clearance document (required)
                         </label>
-                        <Input id="vat-number" name="vat-number" placeholder="VAT-000000" required />
+                        <Input id="tax-clearance-file" name="tax-clearance-file" type="file" accept=".pdf,.png,.jpg,.jpeg" required />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground" htmlFor="tin-number">
-                          TIN number
+                        <label className="text-sm font-medium text-foreground" htmlFor="certified-registrant-id-file">
+                          Certified registrant ID copy (required)
                         </label>
-                        <Input id="tin-number" name="tin-number" placeholder="TIN-000000" required />
+                        <Input id="certified-registrant-id-file" name="certified-registrant-id-file" type="file" accept=".pdf,.png,.jpg,.jpeg" required />
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground" htmlFor="owner-national-id">
-                          Owner national ID
+                        <label className="text-sm font-medium text-foreground" htmlFor="business-registration-certificate-file">
+                          Business registration certificate (optional)
                         </label>
-                        <Input id="owner-national-id" name="owner-national-id" placeholder="ID123456" required />
+                        <Input id="business-registration-certificate-file" name="business-registration-certificate-file" type="file" accept=".pdf,.png,.jpg,.jpeg" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground" htmlFor="supporting-documents-url">
-                          Supporting documents URL (optional)
+                        <label className="text-sm font-medium text-foreground" htmlFor="proof-of-business-address-file">
+                          Proof of business address (optional)
                         </label>
-                        <Input id="supporting-documents-url" name="supporting-documents-url" placeholder="https://..." />
+                        <Input id="proof-of-business-address-file" name="proof-of-business-address-file" type="file" accept=".pdf,.png,.jpg,.jpeg" />
                       </div>
                     </div>
                   </>
