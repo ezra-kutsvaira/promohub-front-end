@@ -10,6 +10,7 @@ export type AuthSession = {
 };
 
 const SESSION_STORAGE_KEY = "promohub.session";
+let stagedSession: AuthSession | undefined;
 
 export const loadSession = (): AuthSession | null => {
   if (typeof window === "undefined") {
@@ -39,6 +40,18 @@ export const saveSession = (session: AuthSession | null) => {
   }
 
   window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+};
+
+export const loadRequestSession = (): AuthSession | null => stagedSession ?? loadSession();
+
+export const stageSession = (session: AuthSession) => {
+  stagedSession = session;
+};
+
+export const hasStagedSession = () => stagedSession !== undefined;
+
+export const clearStagedSession = () => {
+  stagedSession = undefined;
 };
 
 export const clearSession = () => {

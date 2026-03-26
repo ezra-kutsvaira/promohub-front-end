@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, type AuthPayload, type LoginRequest, type RegisterRequest } from "@/lib/api";
-import { loadSession, saveSession } from "@/lib/session";
+import { clearStagedSession, loadRequestSession, loadSession, saveSession } from "@/lib/session";
 
 type RawUserRole = "ADMIN" | "BUSINESS_OWNER" | "CONSUMER" | "CUSTOMER";
 export type UserRole = "ADMIN" | "BUSINESS_OWNER" | "CONSUMER";
@@ -18,6 +18,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   signIn: (payload: LoginRequest) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<AuthPayload>;
+  establishSession: (payload: AuthPayload) => void;
   signOut: () => Promise<void>;
   updateUser: (updates: { fullName: string; password?: string; profileImageURL?: string }) => Promise<void>;
 };
@@ -70,21 +71,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user]);
 
+  const establishSession = useCallback((payload: AuthPayload) => {
+    saveSession(payload);
+    setUser(mapPayloadToUser(payload));
+  }, []);
+
   const signIn = useCallback(async (payload: LoginRequest) => {
     const authResponse = await api.login(payload);
-    saveSession(authResponse);
-    setUser(mapPayloadToUser(authResponse));
-  }, []);
+    establishSession(authResponse);
+  }, [establishSession]);
 
   const register = useCallback(async (payload: RegisterRequest) => {
     const authResponse = await api.register(payload);
-    saveSession(authResponse);
-    setUser(mapPayloadToUser(authResponse));
+    establishSession(authResponse);
     return authResponse;
-  }, []);
+  }, [establishSession]);
 
   const signOut = useCallback(async () => {
-    const session = loadSession();
+    const session = loadRequestSession();
     if (session?.refreshToken) {
       try {
         await api.logout(session.refreshToken);
@@ -92,6 +96,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // ignore logout errors
       }
     }
+    clearStagedSession();
     saveSession(null);
     setUser(null);
   }, []);
@@ -115,10 +120,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       isAuthenticated: Boolean(user),
       signIn,
       register,
+      establishSession,
       signOut,
       updateUser,
     }),
-    [user, signIn, register, signOut, updateUser]
+    [user, signIn, register, establishSession, signOut, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

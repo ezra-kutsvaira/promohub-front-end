@@ -7,13 +7,90 @@ import { BadgeCheck, FileCheck, Shield, TrendingUp } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { api, type BusinessDocumentType, type Category } from "@/lib/api";
+import { api, type AuthPayload, type BusinessDocumentType, type Category } from "@/lib/api";
+import { clearStagedSession, stageSession } from "@/lib/session";
 
 type RegisterRole  = Exclude<UserRole, "ADMIN">; 
 
+const BUSINESS_UPLOAD_ENDPOINTS = [
+  "/api/businesses/documents/upload",
+  "/api/business-documents/upload",
+  "/api/business-verification/documents/upload",
+  "/api/business-verifications/documents/upload",
+];
+
+const BUSINESS_CREATE_ENDPOINT = "/api/businesses";
+const BUSINESS_ROLLBACK_ENDPOINTS = ["/api/users/{id}", "/api/users/me", "/api/users/self"];
+
+const normalizeErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Registration failed. Please try again.";
+
+const includesAny = (value: string, patterns: string[]) => patterns.some((pattern) => value.includes(pattern));
+
+const buildBusinessRegistrationFailureMessage = (
+  error: unknown,
+  failedStep: string,
+  rollbackFailed: boolean
+) => {
+  const rawMessage = normalizeErrorMessage(error).trim();
+  const normalizedMessage = rawMessage.toLowerCase();
+  let message = rawMessage;
+
+  if (failedStep === "uploading business verification documents") {
+    if (includesAny(normalizedMessage, ["no static resource", "not found", "404"])) {
+      message =
+        "Business registration failed while uploading verification documents. The backend is missing the business document upload API. It must expose an authenticated multipart POST endpoint and return a documentUrl for each uploaded file.";
+    } else if (includesAny(normalizedMessage, ["method not allowed", "request method", "405"])) {
+      message =
+        "Business registration failed during document upload because the backend upload endpoint does not accept POST. The server must allow multipart/form-data POST requests for business verification files.";
+    } else if (includesAny(normalizedMessage, ["unsupported media type", "415"])) {
+      message =
+        "Business registration failed during document upload because the backend rejected multipart/form-data. The server must accept a file field plus documentType when uploading business verification documents.";
+    } else if (includesAny(normalizedMessage, ["unauthorized", "forbidden", "401", "403"])) {
+      message =
+        "Business registration failed during document upload because the backend did not accept the new account's access token. Confirm the register response returns a usable token and that upload is allowed immediately after signup.";
+    }
+  }
+
+  if (failedStep === "creating the business profile") {
+    if (includesAny(normalizedMessage, ["no static resource", "not found", "404"])) {
+      message =
+        "Business registration failed after document upload because the backend is missing the business creation API. The server must expose POST /api/businesses to store the business profile and link it to the new owner.";
+    } else if (includesAny(normalizedMessage, ["method not allowed", "request method", "405"])) {
+      message =
+        "Business registration failed because the backend business creation endpoint does not accept POST. The server must allow POST /api/businesses for business-owner signup.";
+    } else if (includesAny(normalizedMessage, ["bad request", "400"])) {
+      message =
+        "Business registration failed because the backend rejected the business payload. Confirm POST /api/businesses accepts ownerId, businessName, description, contactEmail, phoneNumber, category/categoryCode, address, city, country, logoUrl, and the document URL fields.";
+    }
+  }
+
+  if (rollbackFailed) {
+    message = `${message} Cleanup also failed, so the login account may still exist. Confirm the backend allows DELETE /api/users/{id} or DELETE /api/users/me immediately after signup.`;
+  }
+
+  return message;
+};
+
+const logBusinessRegistrationDiagnostic = (
+  error: unknown,
+  failedStep: string,
+  rollbackFailed: boolean,
+  createdUserId?: number
+) => {
+  console.error("Business registration integration failure", {
+    failedStep,
+    createdUserId,
+    rollbackFailed,
+    error,
+    expectedUploadEndpoints: BUSINESS_UPLOAD_ENDPOINTS,
+    expectedBusinessCreateEndpoint: BUSINESS_CREATE_ENDPOINT,
+    expectedRollbackEndpoints: BUSINESS_ROLLBACK_ENDPOINTS,
+  });
+};
+
 const Register = () => {
-  //const { register } = useAuth();
-  const { register, signOut } = useAuth();
+  const { establishSession, signOut } = useAuth();
   const navigate = useNavigate();
   const [role, setRole] = useState<RegisterRole>("BUSINESS_OWNER");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,7 +147,9 @@ const Register = () => {
     const fullName = String(formData.get("full-name") ?? "");
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
-    let createdUserId: number | undefined
+    let createdUserId: number | undefined;
+    let createdAuthResponse: AuthPayload | null = null;
+    let currentStep = role === "BUSINESS_OWNER" ? "creating the login account" : "creating the account";
 
     try {
       setIsSubmitting(true);
@@ -101,11 +180,15 @@ const Register = () => {
         }
       }
 
-      const authResponse = await register({ fullName, email, password, role });
+      const authResponse = await api.register({ fullName, email, password, role });
+      createdAuthResponse = authResponse;
       createdUserId = authResponse.userId;
 
 
       if (role === "BUSINESS_OWNER") {
+        stageSession(authResponse);
+        currentStep = "uploading business verification documents";
+
         const taxClearanceDocumentUrl = await uploadDocument(
           "TAX_CLEARANCE",
           (formData.get("tax-clearance-file") as File) ?? null,
@@ -149,17 +232,23 @@ const Register = () => {
           proofOfBusinessAddressDocumentUrl,
         };
 
+        currentStep = "creating the business profile";
         await api.createBusiness(businessPayload);
 
+        clearStagedSession();
+        establishSession(authResponse);
         toast.success("Thanks! Your business registration has been submitted for review.");
       } else {
+        establishSession(authResponse);
         toast.success("Your account has been created.");
       }
 
       navigate("/dashboard");
     } catch (error) {
+      const failedStep = currentStep;
       let rollbackFailed = false;
       if (role === "BUSINESS_OWNER" && createdUserId) {
+        currentStep = "rolling back the partial account";
         try {
           await api.deleteUser(createdUserId);
         } catch (rollbackError) {
@@ -175,14 +264,23 @@ const Register = () => {
           }
         }
       }
+      if (createdAuthResponse?.refreshToken) {
+        try {
+          await api.logout(createdAuthResponse.refreshToken);
+        } catch {
+          // ignore logout errors during cleanup
+        }
+      }
+      clearStagedSession();
       await signOut();
-      const message = error instanceof Error ? error.message : "Registration failed. Please try again.";
-      toast.error(
-        rollbackFailed
-          ? `${message} Your login account may still exist even though business setup failed. Please contact support or retry after signing in.`
-          : message
-      );
+      if (role === "BUSINESS_OWNER") {
+        logBusinessRegistrationDiagnostic(error, failedStep, rollbackFailed, createdUserId);
+        toast.error(buildBusinessRegistrationFailureMessage(error, failedStep, rollbackFailed));
+      } else {
+        toast.error(normalizeErrorMessage(error));
+      }
     } finally {
+      clearStagedSession();
       setIsSubmitting(false);
     }
   };

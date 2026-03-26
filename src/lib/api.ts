@@ -1,4 +1,12 @@
-import { clearSession, loadSession, saveSession, type AuthSession } from "@/lib/session";
+import {
+  clearSession,
+  clearStagedSession,
+  hasStagedSession,
+  loadRequestSession,
+  saveSession,
+  stageSession,
+  type AuthSession,
+} from "@/lib/session";
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -92,6 +100,29 @@ const isPathParameterTypeMismatchError = (error: unknown) => {
   );
 };
 
+const isUnauthorizedError = (error: unknown) => {
+  if (error instanceof ApiError) {
+    return error.status === 401 || error.status === 403;
+  }
+  if (!(error instanceof Error)) return false;
+  const normalizedMessage = error.message.toLowerCase();
+  return (
+    normalizedMessage.includes("401") ||
+    normalizedMessage.includes("403") ||
+    normalizedMessage.includes("unauthorized") ||
+    normalizedMessage.includes("forbidden")
+  );
+};
+
+const isUnsupportedMediaTypeError = (error: unknown) => {
+  if (error instanceof ApiError) {
+    return error.status === 415;
+  }
+  if (!(error instanceof Error)) return false;
+  const normalizedMessage = error.message.toLowerCase();
+  return normalizedMessage.includes("415") || normalizedMessage.includes("unsupported media type");
+};
+
 
 const parseJson = async (response: Response) => {
   const text = await response.text();
@@ -147,7 +178,7 @@ const refreshSession = async (refreshToken: string): Promise<AuthSession | null>
 };
 
 export const apiRequest = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
-  const session = loadSession();
+  const session = loadRequestSession();
   const headers = new Headers(options.headers ?? {});
 
   if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
@@ -160,10 +191,18 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
   if (response.status === 401 && session?.refreshToken && !options.skipRefresh) {
     const refreshed = await refreshSession(session.refreshToken);
     if (refreshed) {
-      saveSession(refreshed);
+      if (hasStagedSession()) {
+        stageSession(refreshed);
+      } else {
+        saveSession(refreshed);
+      }
       return apiRequest<T>(path, { ...options, skipRefresh: true });
     }
-    clearSession();
+    if (hasStagedSession()) {
+      clearStagedSession();
+    } else {
+      clearSession();
+    }
   }
 
   const payload = await parseJson(response);
@@ -185,7 +224,7 @@ export const apiRequest = async <T>(path: string, options: RequestOptions = {}):
 };
 
 export const apiBlobRequest = async (path: string, options: RequestOptions = {}): Promise<Blob> => {
-  const session = loadSession();
+  const session = loadRequestSession();
   const headers = new Headers(options.headers ?? {});
 
   if (!options.skipAuth && session?.accessToken) {
@@ -198,10 +237,18 @@ export const apiBlobRequest = async (path: string, options: RequestOptions = {})
   if (response.status === 401 && session?.refreshToken && !options.skipRefresh) {
     const refreshed = await refreshSession(session.refreshToken);
     if (refreshed) {
-      saveSession(refreshed);
+      if (hasStagedSession()) {
+        stageSession(refreshed);
+      } else {
+        saveSession(refreshed);
+      }
       return apiBlobRequest(path, { ...options, skipRefresh: true });
     }
-    clearSession();
+    if (hasStagedSession()) {
+      clearStagedSession();
+    } else {
+      clearSession();
+    }
   }
 
   if (!response.ok) {
@@ -1153,7 +1200,31 @@ export const api = {
   enableMfa: (code: string) => apiRequest<void>("/api/users/mfa/enable", { method: "POST", body: JSON.stringify({ code }) }),
   disableMfa: (code: string) => apiRequest<void>("/api/users/mfa/disable", { method: "POST", body: JSON.stringify({ code }) }),
 
-  createBusiness: (payload: BusinessCreateRequest) => apiRequest<Business>(`/api/businesses`, { method: "POST", body: JSON.stringify(payload) }),
+  createBusiness: async (payload: BusinessCreateRequest) => {
+    try {
+      return await apiRequest<Business>(`/api/businesses`, { method: "POST", body: JSON.stringify(payload) });
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        throw new Error(
+          "Business profile creation API is not available. Backend must expose POST /api/businesses to create the business record after signup."
+        );
+      }
+
+      if (isMethodNotSupportedError(error)) {
+        throw new Error(
+          "Business profile creation endpoint exists but does not accept POST. Backend must allow POST /api/businesses for business-owner signup."
+        );
+      }
+
+      if (error instanceof ApiError && error.status === 400) {
+        throw new Error(
+          "Business profile creation was rejected by the backend. Confirm POST /api/businesses accepts ownerId, businessName, description, contactEmail, phoneNumber, category/categoryCode, address, city, country, logoUrl, and the uploaded document URL fields."
+        );
+      }
+
+      throw error;
+    }
+  },
   uploadBusinessDocument: async (documentType: BusinessDocumentType, file: File) => {
     const uploadPaths = [
       "/api/businesses/documents/upload",
@@ -1207,6 +1278,30 @@ export const api = {
     }
 
     if (lastError instanceof Error) {
+      if (isNotFoundError(lastError)) {
+        throw new Error(
+          "Business document upload API is not available. Backend must expose an authenticated multipart POST endpoint such as /api/businesses/documents/upload and return a documentUrl."
+        );
+      }
+
+      if (isMethodNotSupportedError(lastError)) {
+        throw new Error(
+          "Business document upload endpoint exists but does not accept POST. Backend must accept multipart/form-data POST requests for business verification documents."
+        );
+      }
+
+      if (isUnsupportedMediaTypeError(lastError)) {
+        throw new Error(
+          "Business document upload endpoint rejected multipart/form-data. Backend must accept a multipart file field plus documentType."
+        );
+      }
+
+      if (isUnauthorizedError(lastError)) {
+        throw new Error(
+          "Business document upload was rejected as unauthorized. Confirm the register response returns a usable access token and that the upload endpoint accepts authenticated business-owner requests immediately after signup."
+        );
+      }
+
       throw lastError;
     }
 
@@ -1250,6 +1345,12 @@ export const api = {
 
       if (ownerBusiness) {
         return ownerBusiness;
+      }
+
+      if (isNotFoundError(error)) {
+        throw new Error(
+          "No business profile was found for this account. The login may exist, but the business registration did not complete successfully on the backend."
+        );
       }
 
       throw error;
