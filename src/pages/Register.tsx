@@ -12,7 +12,8 @@ import { api, type BusinessDocumentType, type Category } from "@/lib/api";
 type RegisterRole  = Exclude<UserRole, "ADMIN">; 
 
 const Register = () => {
-  const { register } = useAuth();
+  //const { register } = useAuth();
+  const { register, signOut } = useAuth();
   const navigate = useNavigate();
   const [role, setRole] = useState<RegisterRole>("BUSINESS_OWNER");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,10 +70,40 @@ const Register = () => {
     const fullName = String(formData.get("full-name") ?? "");
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
+    let createdUserId: number | undefined
 
     try {
       setIsSubmitting(true);
+
+      if (role === "BUSINESS_OWNER") {
+        const taxClearanceFile = (formData.get("tax-clearance-file") as File) ?? null;
+        const certifiedRegistrantIdFile = (formData.get("certified-registrant-id-file") as File) ?? null;
+        const businessRegistrationCertificateFile = (formData.get("business-registration-certificate-file") as File) ?? null;
+        const proofOfBusinessAddressFile = (formData.get("proof-of-business-address-file") as File) ?? null;
+
+        if (!taxClearanceFile || taxClearanceFile.size === 0) {
+          throw new Error("Tax clearance document is required.");
+        }
+
+        if (!certifiedRegistrantIdFile || certifiedRegistrantIdFile.size === 0) {
+          throw new Error("Certified registrant ID document is required.");
+        }
+
+        validateDocumentFile(taxClearanceFile, "Tax clearance document");
+        validateDocumentFile(certifiedRegistrantIdFile, "Certified registrant ID document");
+
+        if (businessRegistrationCertificateFile && businessRegistrationCertificateFile.size > 0) {
+          validateDocumentFile(businessRegistrationCertificateFile, "Business registration certificate");
+        }
+
+        if (proofOfBusinessAddressFile && proofOfBusinessAddressFile.size > 0) {
+          validateDocumentFile(proofOfBusinessAddressFile, "Proof of business address document");
+        }
+      }
+
       const authResponse = await register({ fullName, email, password, role });
+      createdUserId = authResponse.userId;
+
 
       if (role === "BUSINESS_OWNER") {
         const taxClearanceDocumentUrl = await uploadDocument(
@@ -127,6 +158,14 @@ const Register = () => {
 
       navigate("/dashboard");
     } catch (error) {
+       if (role === "BUSINESS_OWNER" && createdUserId) {
+        try {
+          await api.deleteUser(createdUserId);
+          await signOut();
+        } catch (rollbackError) {
+          console.warn("Unable to roll back partially created user after registration failure", rollbackError);
+        }
+      }
       const message = error instanceof Error ? error.message : "Registration failed. Please try again.";
       toast.error(message);
     } finally {
