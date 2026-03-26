@@ -18,12 +18,19 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { api, type Business, type BusinessVerificationReview, type Promotion } from "@/lib/api";
+import {
+  api,
+  extractBusinessVerificationReview,
+  type Business,
+  type BusinessVerificationReview,
+  type Promotion,
+} from "@/lib/api";
 import { getPromotionVerificationStatus } from "@/lib/promotionStatus";
 
 type ReviewAction = "APPROVED" | "REJECTED" | "MORE_DOCUMENTS_REQUESTED";
 type PromotionStatusFilter = "ALL" | "PENDING" | "APPROVED" | "REJECTED";
 type QueueStatusFilter = "ALL" | "PENDING" | "MORE_DOCUMENTS_REQUESTED";
+type ReviewSource = "api" | "embedded" | "none";
 
 type ReviewerHistoryItem = {
   id: string;
@@ -36,6 +43,7 @@ type ReviewerHistoryItem = {
 type QueueItem = {
   business: Business;
   review: BusinessVerificationReview | null;
+  reviewSource: ReviewSource;
   history: ReviewerHistoryItem[];
 };
 
@@ -76,7 +84,7 @@ const formatDateTime = (value?: string) => {
 
 const formatOptionalValue = (value?: string) => {
   const normalizedValue = value?.trim();
-  return normalizedValue && normalizedValue.length > 0 ? normalizedValue : "—";
+  return normalizedValue && normalizedValue.length > 0 ? normalizedValue : "-";
 };
 
 const getStringFromRecordCandidates = (source: Record<string, unknown> | null, candidates: string[]) => {
@@ -85,6 +93,34 @@ const getStringFromRecordCandidates = (source: Record<string, unknown> | null, c
   for (const candidate of candidates) {
     const value = source[candidate];
     if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+};
+
+const toPositiveNumber = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsedValue = Number(value);
+    if (Number.isFinite(parsedValue) && parsedValue > 0) {
+      return parsedValue;
+    }
+  }
+
+  return undefined;
+};
+
+const getNumberFromRecordCandidates = (source: Record<string, unknown> | null, candidates: string[]) => {
+  if (!source) return undefined;
+
+  for (const candidate of candidates) {
+    const value = toPositiveNumber(source[candidate]);
+    if (value !== undefined) {
       return value;
     }
   }
@@ -129,8 +165,53 @@ const getNestedStringFromCandidates = (value: unknown, candidates: string[]) => 
   return undefined;
 };
 
+const getExplicitVerificationRecordId = (value: unknown) => {
+  try {
+    const records = collectNestedRecords(value);
+
+    for (const record of records) {
+      const match = getNumberFromRecordCandidates(record, [
+        "verificationId",
+        "verification_id",
+        "businessVerificationId",
+        "business_verification_id",
+        "businessVerificationRecordId",
+        "business_verification_record_id",
+        "reviewId",
+        "review_id",
+        "recordId",
+        "record_id",
+      ]);
+      if (match !== undefined) {
+        return match;
+      }
+    }
+  } catch (error) {
+    console.warn("Unable to derive verification record id from business payload", error);
+  }
+
+  return undefined;
+};
+
+const safelyExtractEmbeddedReview = (value: unknown, businessId?: number | string) => {
+  try {
+    return extractBusinessVerificationReview(value, businessId);
+  } catch (error) {
+    console.warn("Unable to derive embedded verification details from business payload", error);
+    return null;
+  }
+};
+
+const getQueueReview = (item: QueueItem) =>
+  item.review ?? safelyExtractEmbeddedReview(item.business, item.business.id);
+
+const getStoredReviewId = (item: QueueItem) =>
+  item.reviewSource === "api"
+    ? item.review?.id ?? item.review?.businessId
+    : getExplicitVerificationRecordId(item.business);
+
 const getQueueItemStatus = (item: QueueItem) =>
-  String(item.review?.status ?? item.business.businessVerificationStatus ?? "").toUpperCase();
+  String(getQueueReview(item)?.status ?? item.business.businessVerificationStatus ?? "").toUpperCase();
 
 const shouldIncludeQueueItem = (item: QueueItem) => {
   const normalizedStatus = getQueueItemStatus(item);
@@ -150,7 +231,7 @@ const getVerificationFieldValue = (
   item: QueueItem,
   candidates: string[],
 ) => (
-  getNestedStringFromCandidates(item.review, candidates)
+  getNestedStringFromCandidates(getQueueReview(item), candidates)
   ?? getNestedStringFromCandidates(item.business, candidates)
 );
 
@@ -232,17 +313,24 @@ const OperationsConsole = () => {
       const businessesWithReviews = await Promise.all(
         businesses.map(async (business) => {
           try {
-            const review = await api.getBusinessVerification(business.id);
+            const detailedBusiness = await api.getBusiness(business.id).catch(() => business);
+            const mergedBusiness = { ...business, ...detailedBusiness };
+            const embeddedReview = safelyExtractEmbeddedReview(mergedBusiness, mergedBusiness.id);
+            const review = await api.getBusinessVerification(mergedBusiness.id);
             return {
-              business,
+              business: mergedBusiness,
               review,
+              reviewSource: "api",
               history: extractHistoryFromReview(review),
             } satisfies QueueItem;
-          } catch {
+          } catch (error) {
+            console.warn("Unable to hydrate verification details for business", business?.id, error);
+            const embeddedReview = safelyExtractEmbeddedReview(business, business?.id);
             return {
               business,
-              review: null,
-              history: [],
+              review: embeddedReview,
+              reviewSource: embeddedReview ? "embedded" : "none",
+              history: extractHistoryFromReview(embeddedReview),
             } satisfies QueueItem;
           }
         })
@@ -418,27 +506,28 @@ const OperationsConsole = () => {
       return;
     }
 
-    const verificationRecordId = selectedQueueItem.review?.id
-      ?? selectedQueueItem.review?.businessId
-      ?? selectedQueueItem.business.id;
-    if (!verificationRecordId) {
-      toast.error("No verification record was found for this business.");
-      return;
-    }
+    const businessId = selectedQueueItem.business.id;
 
     setIsSubmittingAction(true);
 
     try {
+      let reviewId = getStoredReviewId(selectedQueueItem);
+
+      if ((action === "REJECTED" || action === "MORE_DOCUMENTS_REQUESTED") && reviewId === undefined) {
+        const fetchedReview = await api.getBusinessVerification(businessId);
+        reviewId = fetchedReview.id ?? fetchedReview.businessId;
+      }
+
       if (action === "APPROVED") {
-        await api.approveBusinessVerification(verificationRecordId);
+        await api.approveBusinessVerification({ reviewId, businessId });
       }
 
       if (action === "REJECTED") {
-        await api.rejectBusinessVerification(verificationRecordId, normalizedNote);
+        await api.rejectBusinessVerification({ reviewId, businessId }, normalizedNote);
       }
 
       if (action === "MORE_DOCUMENTS_REQUESTED") {
-        await api.requestAdditionalBusinessVerificationDocuments(verificationRecordId, normalizedNote);
+        throw new Error("The backend does not expose a request-more-documents endpoint for business verification yet.");
       }
 
       setQueueItems((previous) => previous.map((item) => {
@@ -447,7 +536,8 @@ const OperationsConsole = () => {
         }
 
         const updatedStatus = action;
-         const localHistoryItem: ReviewerHistoryItem = {
+        const currentReview = item.review ?? safelyExtractEmbeddedReview(item.business, item.business.id);
+        const localHistoryItem: ReviewerHistoryItem = {
           id: `local-${Date.now()}`,
           status: updatedStatus,
           note: normalizedNote || "No Reviewer Note Provided.",
@@ -457,9 +547,9 @@ const OperationsConsole = () => {
 
         return {
           ...item,
-          review: item.review
+          review: currentReview
             ? {
-                ...item.review,
+                ...currentReview,
                 status: updatedStatus,
               }
             : {
@@ -480,7 +570,8 @@ const OperationsConsole = () => {
       await loadQueue();
     } catch (error) {
       console.error("Unable to submit verification action", error);
-      toast.error("Unable to complete that action.");
+      const message = error instanceof Error ? error.message : "Unable to complete that action.";
+      toast.error(message);
     } finally {
       setIsSubmittingAction(false);
     }
@@ -609,7 +700,8 @@ const OperationsConsole = () => {
                         )}
 
                         {!isLoadingQueue && filteredQueueItems.map((item) => {
-                          const status = String(item.review?.status ?? item.business.businessVerificationStatus ?? "PENDING").toUpperCase();
+                          const review = getQueueReview(item);
+                          const status = String(review?.status ?? item.business.businessVerificationStatus ?? "PENDING").toUpperCase();
                           const isSelected = selectedBusinessId === item.business.id;
 
                           return (
@@ -625,7 +717,7 @@ const OperationsConsole = () => {
                               <TableCell>
                                 <Badge variant="secondary">{formatStatusLabel(status)}</Badge>
                               </TableCell>
-                              <TableCell>{formatDateTime(item.review?.submittedAt ?? item.business.createdAt)}</TableCell>
+                              <TableCell>{formatDateTime(review?.submittedAt ?? item.business.createdAt)}</TableCell>
                               <TableCell>{item.business.contactEmail}</TableCell>
                             </TableRow>
                           );
@@ -652,6 +744,7 @@ const OperationsConsole = () => {
                   )}
 
                   {selectedQueueItem && (() => {
+                    const resolvedReview = getQueueReview(selectedQueueItem);
                     const supportingDocumentsUrl = getVerificationFieldValue(
                       selectedQueueItem,
                       ["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url", "documentUrl", "document_url", "supportingDocumentUrl"],
@@ -686,6 +779,14 @@ const OperationsConsole = () => {
 
                       <div className="grid gap-3 md:grid-cols-2 text-sm">
                         <div>
+                          <p className="text-muted-foreground">Business address</p>
+                          <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.address)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Contact email</p>
+                          <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.contactEmail)}</p>
+                        </div>
+                        <div>
                           <p className="text-muted-foreground">VAT number</p>
                           <p className="font-medium">{formatOptionalValue(getVerificationFieldValue(selectedQueueItem, ["vatNumber", "vat_number", "vatNo", "vat_no", "vat", "vatId", "vat_id", "businessVatNumber", "business_vat_number", "vatRegistrationNumber", "vat_registration_number"]))}</p>
                         </div>
@@ -699,7 +800,7 @@ const OperationsConsole = () => {
                         </div>
                         <div>
                           <p className="text-muted-foreground">Submitted</p>
-                          <p className="font-medium">{formatDateTime(selectedQueueItem.review?.submittedAt ?? selectedQueueItem.business.createdAt)}</p>
+                          <p className="font-medium">{formatDateTime(resolvedReview?.submittedAt ?? selectedQueueItem.business.createdAt)}</p>
                         </div>
                       </div>
 

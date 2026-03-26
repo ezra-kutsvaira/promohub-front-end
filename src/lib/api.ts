@@ -634,6 +634,9 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
     ? (value as Record<string, unknown>)
     : null;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  asRecord(value) !== null;
+
 const getStringFromCandidates = (
   source: Record<string, unknown> | null,
   candidates: string[],
@@ -768,6 +771,99 @@ const normalizeBusinessVerificationReviewCollection = (
 
   return normalizedCandidates[0] ?? normalizeBusinessVerificationReview(payload);
 };
+
+const hasMeaningfulBusinessVerificationReview = (review: BusinessVerificationReview) =>
+  review.id > 0
+  || review.businessId > 0
+  || Boolean(review.status?.trim())
+  || Boolean(review.vatNumber?.trim())
+  || Boolean(review.tinNumber?.trim())
+  || Boolean(review.ownerNationalId?.trim())
+  || Boolean(review.supportingDocumentsUrl?.trim())
+  || Boolean(review.submittedAt?.trim());
+
+export const extractBusinessVerificationReview = (
+  payload: unknown,
+  businessId?: number | string,
+): BusinessVerificationReview | null => {
+  const review = normalizeBusinessVerificationReviewCollection(payload, businessId);
+  return hasMeaningfulBusinessVerificationReview(review) ? review : null;
+};
+
+const dedupePaths = (paths: string[]) => Array.from(new Set(paths));
+
+const buildBusinessVerificationApprovePaths = (
+  reviewId?: number | string,
+  businessId?: number | string,
+) => dedupePaths([
+  ...(reviewId === undefined ? [] : [
+    `/api/business-verification/${reviewId}/approve`,
+    `/api/business-verifications/${reviewId}/approve`,
+    `/api/admin/business-verification/${reviewId}/approve`,
+    `/api/admin/business-verifications/${reviewId}/approve`,
+  ]),
+  ...(businessId === undefined ? [] : [
+    `/api/businesses/${businessId}/verification/approve`,
+    `/api/businesses/${businessId}/approve`,
+    `/api/businesses/${businessId}/verify`,
+    `/api/admin/businesses/${businessId}/verification/approve`,
+    `/api/admin/businesses/${businessId}/approve`,
+    `/api/admin/businesses/${businessId}/verify`,
+  ]),
+]);
+
+const buildBusinessVerificationRejectPaths = (
+  reviewId: number | string | undefined,
+  businessId: number | string | undefined,
+  reason?: string,
+) => dedupePaths([
+  ...(reviewId === undefined ? [] : [
+    appendQueryParam(`/api/business-verification/${reviewId}/reject`, "reason", reason),
+    appendQueryParam(`/api/business-verifications/${reviewId}/reject`, "reason", reason),
+    appendQueryParam(`/api/admin/business-verification/${reviewId}/reject`, "reason", reason),
+    appendQueryParam(`/api/admin/business-verifications/${reviewId}/reject`, "reason", reason),
+  ]),
+]);
+
+const buildBusinessVerificationRequestDocumentsPaths = (
+  reviewId: number | string | undefined,
+  businessId: number | string | undefined,
+) => dedupePaths([
+  ...(reviewId === undefined ? [] : [
+    `/api/business-verification/${reviewId}/request-documents`,
+    `/api/business-verifications/${reviewId}/request-documents`,
+    `/api/business-verification/${reviewId}/additional-documents`,
+    `/api/business-verifications/${reviewId}/additional-documents`,
+    `/api/admin/business-verification/${reviewId}/request-documents`,
+    `/api/admin/business-verifications/${reviewId}/request-documents`,
+  ]),
+  ...(businessId === undefined ? [] : [
+    `/api/businesses/${businessId}/verification/request-documents`,
+    `/api/businesses/${businessId}/request-documents`,
+    `/api/businesses/${businessId}/verification/additional-documents`,
+    `/api/businesses/${businessId}/additional-documents`,
+    `/api/admin/businesses/${businessId}/verification/request-documents`,
+    `/api/admin/businesses/${businessId}/request-documents`,
+  ]),
+]);
+
+const buildBusinessVerificationMutationPaths = (
+  reviewId: number | string | undefined,
+  businessId: number | string | undefined,
+) => dedupePaths([
+  ...(reviewId === undefined ? [] : [
+    `/api/business-verification/${reviewId}`,
+    `/api/business-verifications/${reviewId}`,
+    `/api/admin/business-verification/${reviewId}`,
+    `/api/admin/business-verifications/${reviewId}`,
+  ]),
+  ...(businessId === undefined ? [] : [
+    `/api/businesses/${businessId}/verification`,
+    `/api/businesses/${businessId}/business-verification`,
+    `/api/admin/businesses/${businessId}/verification`,
+    `/api/admin/businesses/${businessId}/business-verification`,
+  ]),
+]);
 
 const toBusinessVerificationRequestBodies = (payload: BusinessVerificationRequest) => {
   const supportingDocumentsUrl = payload.supportingDocumentsUrl?.trim();
@@ -1377,9 +1473,11 @@ export const api = {
     let lastError: unknown;
     for (const body of toBusinessVerificationRequestBodies(payload)) {
       try {
-        return await apiRequestWithAlternatives(
+        return await apiRequestWithMethodAndPathAlternatives(
           paths,
-          { method: "POST", body: JSON.stringify(body) }
+          ["POST", "PUT", "PATCH"],
+          JSON.stringify(body),
+          [400, 404, 405]
         );
       } catch (error) {
         lastError = error;
@@ -1419,22 +1517,37 @@ export const api = {
       `/api/business-verification?business_id=${encodeURIComponent(normalizedBusinessId)}`,
       `/api/business-verifications?businessId=${encodeURIComponent(normalizedBusinessId)}`,
       `/api/business-verifications?business_id=${encodeURIComponent(normalizedBusinessId)}`,
+      `/api/admin/business-verification?businessId=${encodeURIComponent(normalizedBusinessId)}`,
+      `/api/admin/business-verification?business_id=${encodeURIComponent(normalizedBusinessId)}`,
       `/api/admin/business-verifications?businessId=${encodeURIComponent(normalizedBusinessId)}`,
       `/api/admin/business-verifications?business_id=${encodeURIComponent(normalizedBusinessId)}`,
+      `/api/business-verification`,
+      `/api/business-verifications`,
+      `/api/admin/business-verification`,
+      `/api/admin/business-verifications`,
     ];
 
     let lastError: unknown;
 
     for (const path of businessScopedPaths) {
       try {
-        const review = normalizeBusinessVerificationReviewCollection(await apiRequest<unknown>(path), id);
+        const review = extractBusinessVerificationReview(await apiRequest<unknown>(path), id);
+        if (!review) {
+          continue;
+        }
         if (review.businessId > 0 && String(review.businessId) !== normalizedBusinessId) {
           continue;
         }
         return review;
       } catch (error) {
         lastError = error;
-        if (isNotFoundError(error)) {
+        const shouldRetry =
+          isNotFoundError(error)
+          || isMethodNotSupportedError(error)
+          || isPathParameterTypeMismatchError(error)
+          || (error instanceof ApiError && [400, 404, 405].includes(error.status));
+
+        if (shouldRetry) {
           continue;
         }
         throw error;
@@ -1447,30 +1560,136 @@ export const api = {
 
     throw new Error("Unable to load business verification.");
   },
-  approveBusinessVerification: (id: number | string) => apiRequestWithFallback<void>(
-    `/api/business-verification/${id}/approve`,
-    `/api/business-verifications/${id}/approve`,
-    { method: "POST"}
-  ),
-  rejectBusinessVerification: (id: number | string, reason?: string) => apiRequestWithFallback<void>(
-    // `/api/business-verification/${id}/reject`,
-    //`/api/business-verifications/${id}/reject`,
-     appendQueryParam(`/api/business-verification/${id}/reject`, "reason", reason),
-    appendQueryParam(`/api/business-verifications/${id}/reject`, "reason", reason),
-    { method: "POST", body: JSON.stringify(reason ? { reason } : {}) }
-  ),
+  approveBusinessVerification: async (target: { reviewId?: number | string; businessId: number | string }) => {
+    const actionPaths = buildBusinessVerificationApprovePaths(target.reviewId, target.businessId);
+    const mutationPaths = buildBusinessVerificationMutationPaths(target.reviewId, target.businessId);
+    const actionBodyCandidates = [
+      undefined,
+      JSON.stringify({ status: "APPROVED", businessVerificationStatus: "APPROVED", verified: true }),
+    ];
+    const mutationBodyCandidates = [
+      JSON.stringify({ status: "APPROVED", businessVerificationStatus: "APPROVED", verified: true }),
+      JSON.stringify({ approved: true, verified: true, status: "APPROVED" }),
+    ];
 
-  //a code block for requesting additional business documents
-  requestAdditionalBusinessVerificationDocuments: (id: number | string, note: string) =>
-    apiRequestWithAlternatives<void>(
-      [
-        `/api/business-verification/${id}/request-documents`,
-        `/api/business-verifications/${id}/request-documents`,
-        `/api/business-verification/${id}/additional-documents`,
-        `/api/business-verifications/${id}/additional-documents`, 
-      ], 
-       { method: "POST", body: JSON.stringify({ note }) }
-  ),
+    let lastError: unknown;
+    for (const body of actionBodyCandidates) {
+      try {
+        return await apiRequestWithMethodAndPathAlternatives<void>(
+          actionPaths,
+          ["POST", "PATCH", "PUT"],
+          body,
+          [400, 404, 405]
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    for (const body of mutationBodyCandidates) {
+      try {
+        return await apiRequestWithMethodAndPathAlternatives<void>(
+          mutationPaths,
+          ["PATCH", "PUT", "POST"],
+          body,
+          [400, 404, 405]
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to approve business verification.");
+  },
+  rejectBusinessVerification: async (
+    target: { reviewId?: number | string; businessId: number | string },
+    reason?: string
+  ) => {
+    if (target.reviewId === undefined) {
+      throw new Error("Unable to reject business verification because no verification record ID was found.");
+    }
+
+    const actionPaths = buildBusinessVerificationRejectPaths(target.reviewId, target.businessId, reason);
+    const bodyCandidates = [
+      JSON.stringify(reason ? { reason } : {}),
+      JSON.stringify(reason ? { note: reason, reason } : { note: "" }),
+      JSON.stringify(
+        reason
+          ? { reason, status: "REJECTED", businessVerificationStatus: "REJECTED" }
+          : { status: "REJECTED", businessVerificationStatus: "REJECTED" }
+      ),
+    ];
+
+    let lastError: unknown;
+    for (const body of bodyCandidates) {
+      try {
+        return await apiRequestWithMethodAndPathAlternatives<void>(
+          actionPaths,
+          ["POST", "PATCH", "PUT"],
+          body,
+          [400, 404, 405]
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to reject business verification.");
+  },
+
+  requestAdditionalBusinessVerificationDocuments: async (
+    target: { reviewId?: number | string; businessId: number | string },
+    note: string
+  ) => {
+    const actionPaths = buildBusinessVerificationRequestDocumentsPaths(target.reviewId, target.businessId);
+    const mutationPaths = buildBusinessVerificationMutationPaths(target.reviewId, target.businessId);
+    const bodyCandidates = [
+      JSON.stringify({ note }),
+      JSON.stringify({ reason: note }),
+      JSON.stringify({ note, status: "MORE_DOCUMENTS_REQUESTED", businessVerificationStatus: "MORE_DOCUMENTS_REQUESTED" }),
+    ];
+
+    let lastError: unknown;
+    for (const body of bodyCandidates) {
+      try {
+        return await apiRequestWithMethodAndPathAlternatives<void>(
+          actionPaths,
+          ["POST", "PATCH", "PUT"],
+          body,
+          [400, 404, 405]
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    for (const body of bodyCandidates) {
+      try {
+        return await apiRequestWithMethodAndPathAlternatives<void>(
+          mutationPaths,
+          ["PATCH", "PUT", "POST"],
+          body,
+          [400, 404, 405]
+        );
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to request additional business verification documents.");
+  },
 
 
   reportPromotion: (payload: { promotionId: number; reason: string; details?: string }) => apiRequest(`/api/reports`, { method: "POST", body: JSON.stringify(payload) }),

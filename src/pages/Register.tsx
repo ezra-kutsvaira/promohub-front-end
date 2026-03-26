@@ -18,6 +18,11 @@ const BUSINESS_UPLOAD_ENDPOINTS = [
   "/api/business-verification/documents/upload",
   "/api/business-verifications/documents/upload",
 ];
+const BUSINESS_VERIFICATION_ENDPOINTS = [
+  "/api/business-verification",
+  "/api/business-verifications",
+  "/api/businesses/{id}/verification",
+];
 
 const BUSINESS_CREATE_ENDPOINT = "/api/businesses";
 const BUSINESS_ROLLBACK_ENDPOINTS = ["/api/users/{id}", "/api/users/me", "/api/users/self"];
@@ -83,6 +88,22 @@ const buildBusinessRegistrationFailureMessage = (
     }
   }
 
+  if (failedStep === "submitting the verification record") {
+    if (includesAny(normalizedMessage, ["no static resource", "not found", "404"])) {
+      message =
+        "Business registration created the business profile, but the backend is missing the business verification submission API. The server must expose a POST endpoint such as /api/business-verification or /api/business-verifications to store VAT, TIN, and owner national ID details.";
+    } else if (includesAny(normalizedMessage, ["method not allowed", "request method", "405"])) {
+      message =
+        "Business registration created the business profile, but the backend verification endpoint does not accept POST. The server must allow POST requests for business verification submission.";
+    } else if (includesAny(normalizedMessage, ["bad request", "400"])) {
+      message =
+        "Business registration created the business profile, but the backend rejected the verification details. Confirm the verification API accepts businessId, vatNumber, tinNumber, ownerNationalId, and any optional supportingDocumentsUrl fields.";
+    } else if (includesAny(normalizedMessage, ["unauthorized", "forbidden", "401", "403"])) {
+      message =
+        "Business registration created the business profile, but the backend refused the verification submission as unauthorized. Confirm the newly created BUSINESS_OWNER token can immediately submit verification details.";
+    }
+  }
+
   if (rollbackFailed) {
     message = `${message} Cleanup also failed, so the login account may still exist. Confirm the backend allows DELETE /api/users/{id} or DELETE /api/users/me immediately after signup.`;
   }
@@ -103,6 +124,7 @@ const logBusinessRegistrationDiagnostic = (
     error,
     expectedUploadEndpoints: BUSINESS_UPLOAD_ENDPOINTS,
     expectedBusinessCreateEndpoint: BUSINESS_CREATE_ENDPOINT,
+    expectedBusinessVerificationEndpoints: BUSINESS_VERIFICATION_ENDPOINTS,
     expectedRollbackEndpoints: BUSINESS_ROLLBACK_ENDPOINTS,
   });
 };
@@ -166,6 +188,7 @@ const Register = () => {
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
     let createdUserId: number | undefined;
+    let createdBusinessId: number | undefined;
     let createdAuthResponse: AuthPayload | null = null;
     let currentStep = role === "BUSINESS_OWNER" ? "creating the login account" : "creating the account";
 
@@ -264,7 +287,17 @@ const Register = () => {
         };
 
         currentStep = "creating the business profile";
-        await api.createBusiness(businessPayload);
+        const createdBusiness = await api.createBusiness(businessPayload);
+        createdBusinessId = createdBusiness.id;
+
+        currentStep = "submitting the verification record";
+        await api.requestBusinessVerification({
+          businessId: createdBusiness.id,
+          vatNumber: String(formData.get("vat-number") ?? "").trim(),
+          tinNumber: String(formData.get("tin-number") ?? "").trim(),
+          ownerNationalId: String(formData.get("owner-national-id") ?? "").trim(),
+          supportingDocumentsUrl: businessRegistrationCertificateUrl ?? proofOfBusinessAddressDocumentUrl,
+        });
 
         clearStagedSession();
         establishSession(authResponse);
@@ -278,6 +311,18 @@ const Register = () => {
     } catch (error) {
       const failedStep = currentStep;
       let rollbackFailed = false;
+      if (role === "BUSINESS_OWNER" && createdBusinessId) {
+        currentStep = "rolling back the partial business profile";
+        try {
+          await api.deleteBusiness(createdBusinessId);
+        } catch (rollbackBusinessError) {
+          rollbackFailed = true;
+          console.warn(
+            "Unable to roll back partially created business after registration failure",
+            rollbackBusinessError
+          );
+        }
+      }
       if (role === "BUSINESS_OWNER" && createdUserId) {
         currentStep = "rolling back the partial account";
         try {
@@ -430,6 +475,26 @@ const Register = () => {
                           Phone number
                         </label>
                         <Input id="phone" name="phone" type="tel" placeholder="+263 77 000 0000" required />
+                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground" htmlFor="vat-number">
+                          VAT number
+                        </label>
+                        <Input id="vat-number" name="vat-number" placeholder="2200000000" required />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground" htmlFor="tin-number">
+                          TIN number
+                        </label>
+                        <Input id="tin-number" name="tin-number" placeholder="1234567890" required />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground" htmlFor="owner-national-id">
+                          Owner national ID
+                        </label>
+                        <Input id="owner-national-id" name="owner-national-id" placeholder="63-123456-A-12" required />
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
