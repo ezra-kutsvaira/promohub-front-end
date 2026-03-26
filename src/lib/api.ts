@@ -1141,6 +1141,13 @@ export const api = {
   getUserByEmail: (email: string) => apiRequest<UserProfile>(`/api/users/by-email?email=${encodeURIComponent(email)}`),
   verifyUser: (id: number | string) => apiRequest<void>(`/api/users/${id}/verify`, { method: "POST" }),
   deleteUser: (id: number | string) => apiRequest<void>(`/api/users/${id}`, { method: "DELETE" }),
+  deleteCurrentUser: () =>
+    apiRequestWithMethodAndPathAlternatives<void>(
+      ["/api/users/me", "/api/users/self"],
+      ["DELETE"],
+      undefined,
+      [400, 404, 405]
+    ),
   changePassword: (id: number, payload: { currentPassword: string; newPassword: string; confirmNewPassword: string }) => apiRequest(`/api/users/${id}/change-password`, { method: "POST", body: JSON.stringify(payload) }),
   setupMfa: () => apiRequest<MfaSetupResponse>("/api/users/mfa/setup", { method: "POST" }),
   enableMfa: (code: string) => apiRequest<void>("/api/users/mfa/enable", { method: "POST", body: JSON.stringify({ code }) }),
@@ -1223,7 +1230,6 @@ export const api = {
       : [
           `/api/businesses/owner/${ownerId}`,
           `/api/businesses/owner?ownerId=${encodeURIComponent(String(ownerId))}`,
-          `/api/owners/${ownerId}/business`,
       ];
 
 

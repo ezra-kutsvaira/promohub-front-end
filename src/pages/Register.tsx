@@ -158,16 +158,30 @@ const Register = () => {
 
       navigate("/dashboard");
     } catch (error) {
-       if (role === "BUSINESS_OWNER" && createdUserId) {
+      let rollbackFailed = false;
+      if (role === "BUSINESS_OWNER" && createdUserId) {
         try {
           await api.deleteUser(createdUserId);
-          await signOut();
         } catch (rollbackError) {
-          console.warn("Unable to roll back partially created user after registration failure", rollbackError);
+          try {
+            await api.deleteCurrentUser();
+          } catch (deleteCurrentUserError) {
+            rollbackFailed = true;
+            console.warn(
+              "Unable to roll back partially created user after registration failure",
+              rollbackError,
+              deleteCurrentUserError
+            );
+          }
         }
       }
+      await signOut();
       const message = error instanceof Error ? error.message : "Registration failed. Please try again.";
-      toast.error(message);
+      toast.error(
+        rollbackFailed
+          ? `${message} Your login account may still exist even though business setup failed. Please contact support or retry after signing in.`
+          : message
+      );
     } finally {
       setIsSubmitting(false);
     }
