@@ -27,6 +27,21 @@ const normalizeErrorMessage = (error: unknown) =>
 
 const includesAny = (value: string, patterns: string[]) => patterns.some((pattern) => value.includes(pattern));
 
+const normalizeReturnedUserRole = (role: string | undefined): UserRole | undefined => {
+  if (!role) return undefined;
+
+  const normalizedRole = role.trim().toUpperCase();
+  if (normalizedRole === "CUSTOMER") {
+    return "CONSUMER";
+  }
+
+  if (normalizedRole === "ADMIN" || normalizedRole === "BUSINESS_OWNER" || normalizedRole === "CONSUMER") {
+    return normalizedRole as UserRole;
+  }
+
+  return undefined;
+};
+
 const buildBusinessRegistrationFailureMessage = (
   error: unknown,
   failedStep: string,
@@ -62,6 +77,9 @@ const buildBusinessRegistrationFailureMessage = (
     } else if (includesAny(normalizedMessage, ["bad request", "400"])) {
       message =
         "Business registration failed because the backend rejected the business payload. Confirm POST /api/businesses accepts ownerId, businessName, description, contactEmail, phoneNumber, category/categoryCode, address, city, country, logoUrl, and the document URL fields.";
+    } else if (includesAny(normalizedMessage, ["unauthorized", "forbidden", "401", "403"])) {
+      message =
+        "Business registration failed while creating the business profile because the backend refused the new account's access token or role. Confirm POST /api/businesses accepts authenticated BUSINESS_OWNER requests immediately after signup.";
     }
   }
 
@@ -186,6 +204,19 @@ const Register = () => {
 
 
       if (role === "BUSINESS_OWNER") {
+        if (!authResponse.accessToken?.trim()) {
+          throw new Error(
+            "Business-owner signup succeeded, but the backend did not return a usable access token. Document upload and business profile creation require a bearer token immediately after signup."
+          );
+        }
+
+        const returnedRole = normalizeReturnedUserRole(authResponse.userRole);
+        if (returnedRole && returnedRole !== "BUSINESS_OWNER") {
+          throw new Error(
+            `Business-owner signup created an account with role ${returnedRole} instead of BUSINESS_OWNER. The backend must persist the requested business-owner role before document upload and POST /api/businesses.`
+          );
+        }
+
         stageSession(authResponse);
         currentStep = "uploading business verification documents";
 

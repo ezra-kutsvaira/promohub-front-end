@@ -917,6 +917,7 @@ export const api = {
             isNotFoundError(error) ||
             isMethodNotSupportedError(error) ||
             isPathParameterTypeMismatchError(error) ||
+            (error instanceof ApiError && error.status === 400) ||
             (error instanceof ApiError && error.status === 409) ||
             isEmailAlreadyRegisteredError(error);
 
@@ -1222,6 +1223,12 @@ export const api = {
         );
       }
 
+      if (isUnauthorizedError(error)) {
+        throw new Error(
+          "Business profile creation was rejected as unauthorized. Confirm POST /api/businesses accepts the new account's access token immediately after signup and that the registered user has the BUSINESS_OWNER role required to create a business profile."
+        );
+      }
+
       throw error;
     }
   },
@@ -1310,6 +1317,7 @@ export const api = {
   
   getBusinessDocumentBlob: (ownerId: number, fileName: string) =>
     apiBlobRequest(`/api/businesses/documents/${ownerId}/${encodeURIComponent(fileName)}`),
+  getProtectedDocumentBlob: (documentUrl: string) => apiBlobRequest(documentUrl),
   getBusiness: (id: number | string) => apiRequest<Business>(`/api/businesses/${id}`),
   getBusinesses: () => apiRequest<PageResponse<Business> | Business[]>("/api/businesses"),
   getCategories: () => apiRequest<Category[]>("/api/categories", { skipAuth: true }),

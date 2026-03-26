@@ -154,6 +154,13 @@ const getVerificationFieldValue = (
   ?? getNestedStringFromCandidates(item.business, candidates)
 );
 
+const isApiBackedDocumentUrl = (value?: string) => {
+  const normalizedValue = value?.trim();
+  if (!normalizedValue) return false;
+
+  return /^\/api(?:\/|$)/i.test(normalizedValue) || /^https?:\/\/[^/]+\/api(?:\/|$)/i.test(normalizedValue);
+};
+
 const extractHistoryFromReview = (review: BusinessVerificationReview | null): ReviewerHistoryItem[] => {
   if (!review) return [];
 
@@ -214,6 +221,7 @@ const OperationsConsole = () => {
   const [isLoadingPromotions, setIsLoadingPromotions] = useState(true);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
   const [promotionActionId, setPromotionActionId] = useState<number | null>(null);
+  const [openingDocumentUrl, setOpeningDocumentUrl] = useState<string | null>(null);
 
   const loadQueue = useCallback(async () => {
     setIsLoadingQueue(true);
@@ -358,6 +366,43 @@ const OperationsConsole = () => {
       return searchableText.includes(normalizedSearch);
     });
   }, [promotionQueueItems, promotionStatusFilter, searchTerm]);
+
+  const openProtectedDocument = useCallback(async (documentUrl: string, label: string) => {
+    const previewWindow = window.open("", "_blank");
+    if (previewWindow) {
+      previewWindow.opener = null;
+      previewWindow.document.title = `Opening ${label}`;
+      previewWindow.document.body.innerHTML = "<p style=\"font-family: sans-serif; padding: 24px;\">Loading document...</p>";
+    }
+
+    setOpeningDocumentUrl(documentUrl);
+
+    try {
+      const blob = await api.getProtectedDocumentBlob(documentUrl);
+      const objectUrl = URL.createObjectURL(blob);
+
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.location.href = objectUrl;
+      } else {
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.click();
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (error) {
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.close();
+      }
+
+      const message = error instanceof Error ? error.message : "Unable to open this document.";
+      toast.error(`Unable to open ${label.toLowerCase()}: ${message}`);
+    } finally {
+      setOpeningDocumentUrl((currentValue) => (currentValue === documentUrl ? null : currentValue));
+    }
+  }, []);
 
   const runReviewAction = async (action: ReviewAction, note: string) => {
     if (!selectedQueueItem) {
@@ -628,7 +673,7 @@ const OperationsConsole = () => {
                         label: "Proof of business address",
                         value: getVerificationFieldValue(selectedQueueItem, ["proofOfBusinessAddressDocumentUrl", "proof_of_business_address_document_url"]),
                       },
-                    ].filter((entry) => Boolean(entry.value));
+                    ].filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
 
                     return (
                     <>
@@ -665,43 +710,88 @@ const OperationsConsole = () => {
                             {documentLinks.map((documentLink) => (
                               <div key={documentLink.label} className="space-y-1">
                                 <p className="text-xs text-muted-foreground">{documentLink.label}</p>
-                                <a
-                                  href={documentLink.value}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-primary underline break-all text-sm"
-                                >
-                                  {documentLink.value}
-                                </a>
+                                {isApiBackedDocumentUrl(documentLink.value) ? (
+                                  <div className="space-y-1">
+                                    <Button
+                                      type="button"
+                                      variant="link"
+                                      className="h-auto p-0 text-sm"
+                                      disabled={openingDocumentUrl === documentLink.value}
+                                      onClick={() => void openProtectedDocument(documentLink.value, documentLink.label)}
+                                    >
+                                      {openingDocumentUrl === documentLink.value ? "Opening document..." : "Open document"}
+                                    </Button>
+                                    <p className="text-primary underline break-all text-sm">{documentLink.value}</p>
+                                  </div>
+                                ) : (
+                                  <a
+                                    href={documentLink.value}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-primary underline break-all text-sm"
+                                  >
+                                    {documentLink.value}
+                                  </a>
+                                )}
                               </div>
                             ))}
                             {supportingDocumentsUrl && (
                               <div className="space-y-1">
                                 <p className="text-xs text-muted-foreground">Legacy supporting document URL</p>
-                                <a
-                                  href={supportingDocumentsUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-primary underline break-all text-sm"
-                                >
-                                  {supportingDocumentsUrl}
-                                </a>
+                                {isApiBackedDocumentUrl(supportingDocumentsUrl) ? (
+                                  <div className="space-y-1">
+                                    <Button
+                                      type="button"
+                                      variant="link"
+                                      className="h-auto p-0 text-sm"
+                                      disabled={openingDocumentUrl === supportingDocumentsUrl}
+                                      onClick={() => void openProtectedDocument(supportingDocumentsUrl, "supporting document")}
+                                    >
+                                      {openingDocumentUrl === supportingDocumentsUrl ? "Opening document..." : "Open document"}
+                                    </Button>
+                                    <p className="text-primary underline break-all text-sm">{supportingDocumentsUrl}</p>
+                                  </div>
+                                ) : (
+                                  <a
+                                    href={supportingDocumentsUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-primary underline break-all text-sm"
+                                  >
+                                    {supportingDocumentsUrl}
+                                  </a>
+                                )}
                               </div>
                             )}
                             <p className="text-xs text-muted-foreground">
-                              Open link in a new tab to inspect uploaded files.
+                              Protected API documents open through an authenticated fetch before preview.
                             </p>
                           </div>
                         ) : supportingDocumentsUrl ? (
                           <div className="space-y-2">
-                            <a
-                              href={supportingDocumentsUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-primary underline break-all text-sm"
-                            >
-                              {supportingDocumentsUrl}
-                            </a>
+                            {isApiBackedDocumentUrl(supportingDocumentsUrl) ? (
+                              <div className="space-y-1">
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  className="h-auto p-0 text-sm"
+                                  disabled={openingDocumentUrl === supportingDocumentsUrl}
+                                  onClick={() => void openProtectedDocument(supportingDocumentsUrl, "supporting document")}
+                                >
+                                  {openingDocumentUrl === supportingDocumentsUrl ? "Opening document..." : "Open document"}
+                                </Button>
+                                <p className="text-primary underline break-all text-sm">{supportingDocumentsUrl}</p>
+                              </div>
+                            ) : (
+                              <a
+                                href={supportingDocumentsUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary underline break-all text-sm"
+                              >
+                                {supportingDocumentsUrl}
+                              </a>
+                            )}
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">No supporting documents were included.</p>
