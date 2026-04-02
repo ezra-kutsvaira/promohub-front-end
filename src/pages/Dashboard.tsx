@@ -101,6 +101,57 @@ const getPromotionRejectionReason = (promotion: Promotion): string => {
   return resolvedReason?.trim() ?? "No reason provided.";
 }
 
+const getPromotionVerificationNote = (promotion: Promotion): string | null => {
+  const normalizedNote = promotion.verificationNotes?.trim();
+
+  if (!normalizedNote) {
+    return null;
+  }
+
+  const rejectionReason = getPromotionRejectionReason(promotion);
+  return normalizedNote === rejectionReason ? null : normalizedNote;
+};
+
+const getBusinessPromotionStatusSummary = (promotion: Promotion): string => {
+  const status = getPromotionVerificationStatus(promotion);
+
+  if (status === "PENDING") {
+    return promotion.flagged
+      ? "Under admin review and currently flagged for additional checks."
+      : "Awaiting admin approval.";
+  }
+
+  if (status === "APPROVED") {
+    return promotion.flagged
+      ? "Approved, but still flagged for admin follow-up after a report."
+      : "Approved promotions are visible to customers during their active date range.";
+  }
+
+  return "Rejected after moderation review.";
+};
+
+const getFlaggedPromotionSummary = (promotion: Promotion): string | null => {
+  if (!promotion.flagged) {
+    return null;
+  }
+
+  const status = getPromotionVerificationStatus(promotion);
+
+  if (status === "PENDING") {
+    return "This flagged promotion stays visible to admins while they investigate the report.";
+  }
+
+  if (status === "APPROVED") {
+    return "This promotion is still flagged, so admins can continue monitoring it even while it is approved.";
+  }
+
+  if (status === "REJECTED") {
+    return "This promotion remains part of the flagged moderation record for audit history.";
+  }
+
+  return "This promotion is currently flagged for moderation follow-up.";
+};
+
 const PromotionModerationCard = ({
   promotion,
   reason,
@@ -126,6 +177,8 @@ const PromotionModerationCard = ({
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{getPromotionVerificationStatus(promotion)}</Badge>
+          {promotion.flagged && <Badge variant="destructive">Flagged</Badge>}
+          {typeof promotion.riskScore === "number" && <Badge variant="secondary">Risk {promotion.riskScore}</Badge>}
           <Badge variant="secondary">{promotion.categoryName}</Badge>
           <Badge className="ml-auto">{discountLabel}</Badge>
         </div>
@@ -136,6 +189,11 @@ const PromotionModerationCard = ({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">{promotion.description}</p>
+        {promotion.flagged && (
+          <p className="text-sm text-muted-foreground">
+            This promotion is still flagged, so it remains visible for moderator follow-up even if the report is already closed.
+          </p>
+        )}
 
         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-1">
@@ -440,7 +498,7 @@ const Dashboard = () => {
             <Card className="border-border">
               <CardHeader>
                 <CardTitle>Posted promotions</CardTitle>
-                <CardDescription>Track admin review outcomes and when your promotions go live.</CardDescription>
+                <CardDescription>Track approvals, rejection reasons, and flagged follow-up from admin reviews.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="pending" className="space-y-4">
@@ -456,8 +514,19 @@ const Dashboard = () => {
                     {pendingPromotions.map((promotion) => (
                       <div key={promotion.id} className="rounded-lg border border-border p-4">
                         <p className="font-semibold">{promotion.title}</p>
-                        <p className="text-sm text-muted-foreground">Awaiting admin approval.</p>
-                        <Badge variant="outline" className="mt-2">PENDING</Badge>
+                        <p className="text-sm text-muted-foreground">{getBusinessPromotionStatusSummary(promotion)}</p>
+                        {getFlaggedPromotionSummary(promotion) && (
+                          <p className="mt-2 text-sm text-muted-foreground">{getFlaggedPromotionSummary(promotion)}</p>
+                        )}
+                        {getPromotionVerificationNote(promotion) && (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            Moderator note: {getPromotionVerificationNote(promotion)}
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Badge variant="outline">PENDING</Badge>
+                          {promotion.flagged && <Badge variant="destructive">FLAGGED</Badge>}
+                        </div>
                       </div>
                     ))}
                   </TabsContent>
@@ -468,8 +537,19 @@ const Dashboard = () => {
                     {approvedPromotions.map((promotion) => (
                       <div key={promotion.id} className="rounded-lg border border-border p-4">
                         <p className="font-semibold">{promotion.title}</p>
-                        <p className="text-sm text-muted-foreground">Approved promotions are visible to customers during their active date range.</p>
-                        <Badge className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
+                        <p className="text-sm text-muted-foreground">{getBusinessPromotionStatusSummary(promotion)}</p>
+                        {getFlaggedPromotionSummary(promotion) && (
+                          <p className="mt-2 text-sm text-muted-foreground">{getFlaggedPromotionSummary(promotion)}</p>
+                        )}
+                        {getPromotionVerificationNote(promotion) && (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            Moderator note: {getPromotionVerificationNote(promotion)}
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Badge>{getPromotionVerificationStatus(promotion)}</Badge>
+                          {promotion.flagged && <Badge variant="destructive">FLAGGED</Badge>}
+                        </div>
                       </div>
                     ))}
                   </TabsContent>
@@ -480,11 +560,23 @@ const Dashboard = () => {
                     {rejectedPromotions.map((promotion) => (
                       <div key={promotion.id} className="rounded-lg border border-border p-4">
                         <p className="font-semibold">{promotion.title}</p>
-                        <p className="text-sm text-muted-foreground">Denied: {getPromotionRejectionReason(promotion)}</p>
+                        <p className="text-sm text-muted-foreground">{getBusinessPromotionStatusSummary(promotion)}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">Reason: {getPromotionRejectionReason(promotion)}</p>
+                        {getFlaggedPromotionSummary(promotion) && (
+                          <p className="mt-2 text-sm text-muted-foreground">{getFlaggedPromotionSummary(promotion)}</p>
+                        )}
+                        {getPromotionVerificationNote(promotion) && (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            Moderator note: {getPromotionVerificationNote(promotion)}
+                          </p>
+                        )}
                         <Button size="sm" variant="outline" className="mt-3" asChild>
                           <Link to={`/promotions/${promotion.id}/edit`}>Edit & re-submit</Link>
                         </Button>
-                        <Badge variant="destructive" className="mt-2">REJECTED</Badge>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Badge variant="destructive">REJECTED</Badge>
+                          {promotion.flagged && <Badge variant="destructive">FLAGGED</Badge>}
+                        </div>
                       </div>
                     ))}
                   </TabsContent>
@@ -655,7 +747,15 @@ const Dashboard = () => {
                       <div key={promotion.id} className="rounded-lg border border-border p-4">
                         <p className="font-semibold">{promotion.title}</p>
                         <p className="text-sm text-muted-foreground">Approved for business #{promotion.businessId}.</p>
-                        <Badge className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
+                        {promotion.flagged && (
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Still flagged, so moderators can continue to track it after the report is closed.
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Badge>{getPromotionVerificationStatus(promotion)}</Badge>
+                          {promotion.flagged && <Badge variant="destructive">FLAGGED</Badge>}
+                        </div>
                       </div>
                     ))}
                   </TabsContent>
@@ -668,7 +768,15 @@ const Dashboard = () => {
                         <p className="font-semibold">{promotion.title}</p>
                         <p className="text-sm text-muted-foreground">Rejected for business #{promotion.businessId}.</p>
                         <p className="mt-1 text-sm text-muted-foreground">Reason: {getPromotionRejectionReason(promotion)}</p>
-                        <Badge variant="destructive" className="mt-2">{getPromotionVerificationStatus(promotion)}</Badge>
+                        {promotion.flagged && (
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            This promotion is still marked as flagged in the moderation record.
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Badge variant="destructive">{getPromotionVerificationStatus(promotion)}</Badge>
+                          {promotion.flagged && <Badge variant="destructive">FLAGGED</Badge>}
+                        </div>
                       </div>
                     ))}
                   </TabsContent>

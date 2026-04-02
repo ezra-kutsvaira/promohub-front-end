@@ -562,14 +562,45 @@ export type NotificationItem = {
 
 export type NotificationSubscription = { id: number; channel: string; destination: string; enabled: boolean };
 
+export type ReportResolutionAction =
+  | "DISMISS_REPORT"
+  | "KEEP_PROMOTION_FLAGGED"
+  | "REJECT_PROMOTION";
+
 export type ReportItem = {
   id: number;
   promotionId?: number;
-  eventId?: number;
+  promotionTitle?: string;
+  promotionStatus?: string;
+  promotionFlagged?: boolean;
+  promotionRiskScore?: number;
+  businessId?: number;
+  businessName?: string;
+  reporterId?: number;
+  reporterName?: string;
   reason: string;
   details?: string;
   status: string;
+  reviewStartedAt?: string;
   createdAt?: string;
+  resolvedAt?: string;
+  resolutionNotes?: string;
+  resolutionAction?: ReportResolutionAction | string;
+  adminReviewerId?: number;
+  adminReviewerName?: string;
+};
+
+export type ReportListQuery = {
+  promotionId?: number | string;
+  status?: string;
+  page?: number;
+  size?: number;
+};
+
+export type ReportResolutionRequest = {
+  action?: ReportResolutionAction;
+  resolution?: string;
+  promotionRejectionReason?: string;
 };
 
 export type PlatformAnalytics = {
@@ -627,6 +658,12 @@ const toBusinessArray = (payload: PageResponse<Business> | Business[] | null | u
   if (!payload) return [];
   if (Array.isArray(payload)) return payload;
   return payload.content ?? [];
+};
+
+const toReportArray = (payload: PageResponse<ReportItem> | ReportItem[] | null | undefined): ReportItem[] => {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload.map((item) => normalizeReportItem(item));
+  return (payload.content ?? []).map((item) => normalizeReportItem(item));
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -688,6 +725,143 @@ const pickFirstMatchingValue = (
   }
 
   return undefined;
+};
+
+const normalizeNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsedValue = Number(value);
+    if (Number.isFinite(parsedValue)) {
+      return parsedValue;
+    }
+  }
+
+  return undefined;
+};
+
+const normalizeBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+
+  if (typeof value === "string") {
+    const normalizedValue = value.trim().toLowerCase();
+
+    if (["true", "1", "yes", "y"].includes(normalizedValue)) {
+      return true;
+    }
+
+    if (["false", "0", "no", "n"].includes(normalizedValue)) {
+      return false;
+    }
+  }
+
+  return undefined;
+};
+
+const normalizeReportItem = (payload: unknown): ReportItem => {
+  const rootRecord = asRecord(payload);
+  const nestedSources = collectNestedRecords(payload);
+
+  const pickString = (candidates: string[]) => {
+    for (const source of nestedSources) {
+      const value = getStringFromCandidates(source, candidates);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+
+    return undefined;
+  };
+
+  const pickNumber = (candidates: string[]) =>
+    normalizeNumber(pickFirstMatchingValue(nestedSources, candidates));
+
+  const pickBoolean = (candidates: string[]) =>
+    normalizeBoolean(pickFirstMatchingValue(nestedSources, candidates));
+
+  const promotionRecord = [
+    asRecord(rootRecord?.promotion),
+    asRecord(rootRecord?.reportedPromotion),
+    asRecord(rootRecord?.promotionDetails),
+    asRecord(rootRecord?.deal),
+  ].find((value): value is Record<string, unknown> => Boolean(value));
+
+  const businessRecord = [
+    asRecord(rootRecord?.business),
+    asRecord(rootRecord?.merchant),
+    asRecord(rootRecord?.businessDetails),
+  ].find((value): value is Record<string, unknown> => Boolean(value));
+
+  const reporterRecord = [
+    asRecord(rootRecord?.reporter),
+    asRecord(rootRecord?.reportedBy),
+    asRecord(rootRecord?.user),
+    asRecord(rootRecord?.customer),
+  ].find((value): value is Record<string, unknown> => Boolean(value));
+
+  const reviewerRecord = [
+    asRecord(rootRecord?.adminReviewer),
+    asRecord(rootRecord?.reviewer),
+    asRecord(rootRecord?.admin),
+    asRecord(rootRecord?.resolvedBy),
+  ].find((value): value is Record<string, unknown> => Boolean(value));
+
+  const promotionId = pickNumber(["promotionId", "promotion_id", "reportedPromotionId", "reported_promotion_id"])
+    ?? normalizeNumber(promotionRecord?.id ?? promotionRecord?.promotionId ?? promotionRecord?.promotion_id);
+  const businessId = pickNumber(["businessId", "business_id", "merchantId", "merchant_id"])
+    ?? normalizeNumber(businessRecord?.id ?? businessRecord?.businessId ?? businessRecord?.business_id);
+  const reporterId = pickNumber(["reporterId", "reporter_id", "reportedById", "reported_by_id", "userId", "user_id"])
+    ?? normalizeNumber(reporterRecord?.id ?? reporterRecord?.reporterId ?? reporterRecord?.userId);
+  const adminReviewerId = pickNumber(["adminReviewerId", "admin_reviewer_id", "reviewerId", "reviewer_id", "adminId", "admin_id"])
+    ?? normalizeNumber(reviewerRecord?.id ?? reviewerRecord?.reviewerId ?? reviewerRecord?.adminId);
+
+  return {
+    id: pickNumber(["id", "reportId", "report_id", "promotionReportId", "promotion_report_id"]) ?? 0,
+    promotionId,
+    promotionTitle: pickString(["promotionTitle", "promotion_title", "dealTitle", "deal_title"])
+      ?? getStringFromCandidates(promotionRecord, ["title", "promotionTitle", "promotion_title", "name"]),
+    promotionStatus: pickString(["promotionStatus", "promotion_status", "promotionVerificationStatus", "promotion_verification_status"])
+      ?? getStringFromCandidates(promotionRecord, ["verificationStatus", "verification_status", "status", "promotionStatus", "promotion_status"]),
+    promotionFlagged: pickBoolean(["promotionFlagged", "promotion_flagged", "flagged", "isFlagged"])
+      ?? normalizeBoolean(
+        promotionRecord?.flagged
+        ?? promotionRecord?.isFlagged
+        ?? promotionRecord?.promotionFlagged
+        ?? promotionRecord?.promotion_flagged
+      ),
+    promotionRiskScore: pickNumber(["promotionRiskScore", "promotion_risk_score", "riskScore", "risk_score"])
+      ?? normalizeNumber(
+        promotionRecord?.riskScore
+        ?? promotionRecord?.risk_score
+        ?? promotionRecord?.promotionRiskScore
+        ?? promotionRecord?.promotion_risk_score
+      ),
+    businessId,
+    businessName: pickString(["businessName", "business_name", "merchantName", "merchant_name"])
+      ?? getStringFromCandidates(businessRecord, ["businessName", "business_name", "name", "merchantName", "merchant_name"]),
+    reporterId,
+    reporterName: pickString(["reporterName", "reporter_name", "reportedByName", "reported_by_name"])
+      ?? getStringFromCandidates(reporterRecord, ["fullName", "full_name", "name", "username", "email"]),
+    reason: pickString(["reason", "reportReason", "report_reason", "reportType", "report_type", "category"]) ?? "",
+    details: pickString(["details", "detail", "reportDetails", "report_details", "description", "message", "comment", "comments", "notes"]),
+    status: pickString(["status", "reportStatus", "report_status", "workflowStatus", "workflow_status", "reviewStatus", "review_status"]) ?? "",
+    reviewStartedAt: pickString(["reviewStartedAt", "review_started_at", "reviewBeganAt", "review_began_at", "startedReviewAt", "started_review_at", "inReviewAt", "in_review_at"]),
+    createdAt: pickString(["createdAt", "created_at", "submittedAt", "submitted_at", "reportedAt", "reported_at"]),
+    resolvedAt: pickString(["resolvedAt", "resolved_at", "closedAt", "closed_at", "completedAt", "completed_at"]),
+    resolutionNotes: pickString(["resolutionNotes", "resolution_notes", "resolution", "reviewNotes", "review_notes", "closingNotes", "closing_notes"]),
+    resolutionAction: pickString(["resolutionAction", "resolution_action", "action", "outcome", "decision"]),
+    adminReviewerId,
+    adminReviewerName: pickString(["adminReviewerName", "admin_reviewer_name", "reviewerName", "reviewer_name", "adminName", "admin_name"])
+      ?? getStringFromCandidates(reviewerRecord, ["fullName", "full_name", "name", "username", "email"]),
+  };
 };
 
 const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerificationReview => {
@@ -1691,11 +1865,48 @@ export const api = {
     throw new Error("Unable to request additional business verification documents.");
   },
 
+  reportPromotion: async (payload: { promotionId: number; reason: string; details?: string }) =>
+    normalizeReportItem(await apiRequest<ReportItem>(`/api/reports`, { method: "POST", body: JSON.stringify(payload) })),
+  getReport: async (id: number | string) => normalizeReportItem(await apiRequest<ReportItem>(`/api/reports/${id}`)),
+  getReports: async (query: ReportListQuery = {}) => {
+    const params = new URLSearchParams();
+    if (query.promotionId !== undefined) {
+      params.set("promotionId", String(query.promotionId));
+    }
+    if (query.status && query.status.trim().length > 0) {
+      params.set("status", toStatusParam(query.status));
+    }
+    if (query.page !== undefined) {
+      params.set("page", String(query.page));
+    }
+    if (query.size !== undefined) {
+      params.set("size", String(query.size));
+    }
 
-  reportPromotion: (payload: { promotionId: number; reason: string; details?: string }) => apiRequest(`/api/reports`, { method: "POST", body: JSON.stringify(payload) }),
-  getReport: (id: number | string) => apiRequest<ReportItem>(`/api/reports/${id}`),
-  getReports: () => apiRequest<ReportItem[]>("/api/reports"),
-  resolveReport: (id: number | string, resolution?: string) => apiRequest<void>(`/api/reports/${id}/resolve`, { method: "POST", body: JSON.stringify(resolution ? { resolution } : {}) }),
+    const suffix = params.toString().length > 0 ? `?${params.toString()}` : "";
+    const payload = await apiRequest<PageResponse<ReportItem> | ReportItem[]>(`/api/reports${suffix}`);
+    return toReportArray(payload);
+  },
+  markReportReviewing: (id: number | string) => {
+    const payload: ReportResolutionRequest = {
+      action: "REVIEWING",
+      resolution: "Moved to reviewing",
+    };
+    let path = `/api/reports/${id}/resolve`;
+    path = appendQueryParam(path, "action", payload.action);
+    path = appendQueryParam(path, "resolution", payload.resolution);
+
+    return apiRequest<ReportItem>(path, { method: "POST", body: JSON.stringify(payload) })
+      .then((report) => normalizeReportItem(report));
+  },
+  resolveReport: (id: number | string, payload: ReportResolutionRequest) => {
+    let path = `/api/reports/${id}/resolve`;
+    path = appendQueryParam(path, "action", payload.action);
+    path = appendQueryParam(path, "resolution", payload.resolution);
+    path = appendQueryParam(path, "promotionRejectionReason", payload.promotionRejectionReason);
+    return apiRequest<ReportItem>(path, { method: "POST", body: JSON.stringify(payload) })
+      .then((report) => normalizeReportItem(report));
+  },
 
   getPlatformAnalytics: () => apiRequest<PlatformAnalytics>("/api/analytics/platform"),
   getBusinessAnalytics: (businessId: number | string) => apiRequest<BusinessAnalytics>(`/api/analytics/business/${businessId}`),

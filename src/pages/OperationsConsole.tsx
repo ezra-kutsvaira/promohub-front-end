@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import ReportsModerationPanel from "@/components/operations/ReportsModerationPanel";
 import {
   api,
   extractBusinessVerificationReview,
@@ -621,7 +622,7 @@ const OperationsConsole = () => {
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold">Admin Operations Console</h1>
           <p className="text-muted-foreground max-w-3xl">
-            Search a business and review both verification submissions and promotion moderation items from one place.
+            Search a business and review verification submissions, reported promotions, and promotion moderation items from one place.
           </p>
         </div>
 
@@ -629,7 +630,7 @@ const OperationsConsole = () => {
           <CardHeader>
             <CardTitle>Approval filters</CardTitle>
             <CardDescription>
-              Search by business name, owner, contact email, promotion title, or location to find the moderation items you need to approve.
+              Search by business name, owner, contact email, report reason, promotion title, or location to find the moderation items you need to review.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -646,8 +647,9 @@ const OperationsConsole = () => {
         </Card>
 
         <Tabs defaultValue="business-verification" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="business-verification">Business verification</TabsTrigger>
+            <TabsTrigger value="reported-promotions">Reported promotions</TabsTrigger>
             <TabsTrigger value="promotion-moderation">Promotion moderation</TabsTrigger>
           </TabsList>
 
@@ -989,12 +991,16 @@ const OperationsConsole = () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="reported-promotions" className="space-y-6">
+            <ReportsModerationPanel searchTerm={searchTerm} />
+          </TabsContent>
+
           <TabsContent value="promotion-moderation" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Promotion moderation queue</CardTitle>
                 <CardDescription>
-                  Verified businesses with promotions awaiting approval, plus previously moderated promotions for the same business search.
+                  Verified businesses with promotions awaiting approval, plus flagged or previously moderated promotions that still need visible admin follow-up.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1058,10 +1064,23 @@ const OperationsConsole = () => {
                               <p className="text-xs text-muted-foreground">{business?.ownerName ?? `Business ID ${promotion.businessId}`}</p>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={status === "REJECTED" ? "destructive" : "secondary"}>{formatStatusLabel(status)}</Badge>
+                              <div className="space-y-1">
+                                <Badge variant={status === "REJECTED" ? "destructive" : "secondary"}>
+                                  {formatStatusLabel(status)}
+                                </Badge>
+                                {promotion.flagged && <Badge variant="destructive">Flagged</Badge>}
+                                {typeof promotion.riskScore === "number" && (
+                                  <p className="text-xs text-muted-foreground">Risk score: {promotion.riskScore}</p>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="space-y-2 min-w-[260px]">
                               <p className="text-sm">{formatDateTime(promotion.createdAt)}</p>
+                              {promotion.flagged && (
+                                <p className="text-xs text-muted-foreground">
+                                  This promotion stays visible here because it is still flagged.
+                                </p>
+                              )}
                               {status === "PENDING" && (
                                 <div className="space-y-2">
                                   <Textarea
@@ -1111,7 +1130,7 @@ const OperationsConsole = () => {
         </Tabs>
 
         <p className="text-xs text-muted-foreground">
-          Legacy operations tools are deprecated. This page is now the dedicated workflow for business verification and promotion moderation.
+          Legacy operations tools are deprecated. This page is now the dedicated workflow for business verification, report review, and promotion moderation.
           <Link to="/dashboard" className="text-primary underline ml-1">Return to dashboard</Link>
         </p>
       </main>

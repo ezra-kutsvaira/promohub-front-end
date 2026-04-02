@@ -2,6 +2,23 @@ import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { ShieldCheck, Calendar, MapPin, AlertCircle, Share2, Flag } from "lucide-react";
 import { motion } from "framer-motion";
 import { useParams, Link } from "react-router-dom";
@@ -12,11 +29,24 @@ import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/lib/auth";
 import { landingPromotions } from "@/data/landing";
 
+const reportReasonOptions = [
+  { value: "SCAM_SUSPECTED", label: "Scam suspected" },
+  { value: "MISLEADING_INFORMATION", label: "Misleading information" },
+  { value: "EXPIRED_PROMOTION", label: "Expired promotion" },
+  { value: "REDEMPTION_PROBLEM", label: "Redemption problem" },
+  { value: "OFFENSIVE_CONTENT", label: "Offensive content" },
+  { value: "OTHER", label: "Other" },
+];
+
 const PromotionDetail = () => {
   const { id } = useParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [promotion, setPromotion] = useState<Promotion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -105,17 +135,50 @@ const PromotionDetail = () => {
     }
   };
 
-  const handleReport = async () => {
-    const reason = window.prompt("Please share the reason for reporting this promotion:");
-    if (!reason) {
+  const handleReport = () => {
+    if (!isAuthenticated) {
+      toast.info("Please sign in to report promotions.");
       return;
     }
+
+    if (user?.role === "BUSINESS_OWNER") {
+      toast.info("Business owner accounts cannot submit promotion reports.");
+      return;
+    }
+
+    setIsReportDialogOpen(true);
+  };
+
+  const submitReport = async () => {
+    if (!promotion) {
+      return;
+    }
+
+    const normalizedReason = reportReason.trim();
+    const normalizedDetails = reportDetails.trim();
+
+    if (!normalizedReason) {
+      toast.error("Please select the reason for reporting this promotion.");
+      return;
+    }
+
+    setIsSubmittingReport(true);
+
     try {
-      await api.reportPromotion({ promotionId: promotion.id, reason });
+      await api.reportPromotion({
+        promotionId: promotion.id,
+        reason: normalizedReason,
+        details: normalizedDetails || undefined,
+      });
+      setReportReason("");
+      setReportDetails("");
+      setIsReportDialogOpen(false);
       toast.success("Thanks for reporting. Our team will review this promotion.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to submit report.";
       toast.error(message);
+    } finally {
+      setIsSubmittingReport(false);
     }
   };
 
@@ -156,6 +219,59 @@ const PromotionDetail = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
+
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report this promotion</DialogTitle>
+            <DialogDescription>
+              Tell the moderation team what looks suspicious so they can investigate this promotion.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="report-reason">Reason</Label>
+              <Select value={reportReason} onValueChange={setReportReason}>
+                <SelectTrigger id="report-reason">
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reportReasonOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="report-details">Additional details</Label>
+              <Textarea
+                id="report-details"
+                value={reportDetails}
+                onChange={(event) => setReportDetails(event.target.value)}
+                placeholder="Add context such as pricing mismatch, suspicious wording, or what happened when you tried to redeem it."
+                rows={5}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsReportDialogOpen(false)}
+              disabled={isSubmittingReport}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void submitReport()} disabled={isSubmittingReport}>
+              {isSubmittingReport ? "Submitting..." : "Submit report"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="container mx-auto px-4 py-8">
         {/* Breadcrumb */}
