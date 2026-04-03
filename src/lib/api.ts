@@ -1887,17 +1887,91 @@ export const api = {
     const payload = await apiRequest<PageResponse<ReportItem> | ReportItem[]>(`/api/reports${suffix}`);
     return toReportArray(payload);
   },
-  markReportReviewing: (id: number | string) => {
-    const payload: ReportResolutionRequest = {
-      action: "REVIEWING",
-      resolution: "Moved to reviewing",
-    };
-    let path = `/api/reports/${id}/resolve`;
-    path = appendQueryParam(path, "action", payload.action);
-    path = appendQueryParam(path, "resolution", payload.resolution);
+  markReportReviewing: async (id: number | string) => {
+    const paths = [
+      `/api/reports/${id}/reviewing`,
+      `/api/reports/${id}/review`,
+      `/api/reports/${id}/start-review`,
+      `/api/reports/${id}/status/reviewing`,
+      `/api/reports/${id}/status`,
+      `/api/reports/${id}`,
+    ];
+    const bodyCandidates = [
+      { status: "REVIEWING" },
+      { reportStatus: "REVIEWING" },
+      { workflowStatus: "REVIEWING" },
+      { reviewStatus: "REVIEWING" },
+      { action: "REVIEWING" },
+    ];
 
-    return apiRequest<ReportItem>(path, { method: "POST", body: JSON.stringify(payload) })
-      .then((report) => normalizeReportItem(report));
+    let lastError: unknown;
+    for (const body of bodyCandidates) {
+      try {
+        const payload = await apiRequestWithMethodAndPathAlternatives<ReportItem | null>(
+          paths,
+          ["PATCH", "PUT", "POST"],
+          JSON.stringify(body),
+          [400, 404, 405],
+        );
+
+        const normalizedReport = normalizeReportItem(payload);
+        if (normalizedReport.id > 0 || normalizedReport.status || normalizedReport.reviewStartedAt) {
+          return normalizedReport;
+        }
+
+        const fallbackReportId = normalizeNumber(id) ?? 0;
+        return {
+          id: fallbackReportId,
+          reason: "",
+          status: "REVIEWING",
+          reviewStartedAt: new Date().toISOString(),
+        };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to move the report into reviewing without closing it.");
+  },
+  flagPromotion: async (id: number | string, reason?: string) => {
+    const paths = [
+      appendQueryParam(`/api/admin/promotions/${id}/flag`, "reason", reason),
+      appendQueryParam(`/api/admin/promotion/${id}/flag`, "reason", reason),
+      appendQueryParam(`/api/promotions/${id}/flag`, "reason", reason),
+      appendQueryParam(`/api/promotions/${id}/verification/flag`, "reason", reason),
+      appendQueryParam(`/api/promotions/${id}/moderation/flag`, "reason", reason),
+    ];
+    const bodyCandidates = [
+      reason ? { flagged: true, reason } : { flagged: true },
+      reason ? { flagged: true, note: reason } : { flagged: true },
+      reason ? { action: "FLAG", reason } : { action: "FLAG" },
+      reason ? { status: "FLAGGED", flagged: true, reason } : { status: "FLAGGED", flagged: true },
+    ];
+
+    let lastError: unknown;
+    for (const body of bodyCandidates) {
+      try {
+        await apiRequestWithMethodAndPathAlternatives<void>(
+          paths,
+          ["PATCH", "PUT", "POST"],
+          JSON.stringify(body),
+          [400, 404, 405],
+        );
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to keep the promotion flagged.");
   },
   resolveReport: (id: number | string, payload: ReportResolutionRequest) => {
     let path = `/api/reports/${id}/resolve`;

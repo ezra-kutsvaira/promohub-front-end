@@ -615,6 +615,38 @@ const OperationsConsole = () => {
     }
   };
 
+  const handlePromotionMutationFromReports = useCallback((mutation: {
+    promotionId: number;
+    flagged?: boolean;
+    promotionStatus?: string;
+    rejectionReason?: string;
+    verificationNotes?: string;
+  }) => {
+    setPromotionQueueItems((current) => current.map((item) => {
+      if (item.promotion.id !== mutation.promotionId) {
+        return item;
+      }
+
+      const nextPromotion = {
+        ...item.promotion,
+        ...(mutation.flagged !== undefined ? { flagged: mutation.flagged } : {}),
+        ...(mutation.promotionStatus
+          ? {
+              status: mutation.promotionStatus,
+              verificationStatus: mutation.promotionStatus,
+            }
+          : {}),
+        ...(mutation.rejectionReason ? { rejectionReason: mutation.rejectionReason } : {}),
+        ...(mutation.verificationNotes ? { verificationNotes: mutation.verificationNotes } : {}),
+      };
+
+      return {
+        ...item,
+        promotion: nextPromotion,
+      };
+    }));
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -992,7 +1024,11 @@ const OperationsConsole = () => {
           </TabsContent>
 
           <TabsContent value="reported-promotions" className="space-y-6">
-            <ReportsModerationPanel searchTerm={searchTerm} />
+            <ReportsModerationPanel
+              searchTerm={searchTerm}
+              onPromotionMutation={handlePromotionMutationFromReports}
+              onPromotionQueueRefresh={loadPromotions}
+            />
           </TabsContent>
 
           <TabsContent value="promotion-moderation" className="space-y-6">

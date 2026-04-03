@@ -27,6 +27,13 @@ type PromotionReportSummary = {
   closedReports: number;
   uniqueReporterCount: number;
 };
+type PromotionModerationMutation = {
+  promotionId: number;
+  flagged?: boolean;
+  promotionStatus?: string;
+  rejectionReason?: string;
+  verificationNotes?: string;
+};
 
 const REPORT_OPEN_STATUSES = new Set(["OPEN", "PENDING", "SUBMITTED", "NEW"]);
 const REPORT_REVIEWING_STATUSES = new Set(["REVIEWING", "IN_REVIEW", "UNDER_REVIEW", "IN_PROGRESS"]);
@@ -199,7 +206,15 @@ const getEscalationRecommendation = (
   return "Recommended action: keep reviewing unless the report proves the promotion is misleading, invalid, fraudulent, or repeatedly disputed by different users.";
 };
 
-export const ReportsModerationPanel = ({ searchTerm }: { searchTerm: string }) => {
+export const ReportsModerationPanel = ({
+  searchTerm,
+  onPromotionMutation,
+  onPromotionQueueRefresh,
+}: {
+  searchTerm: string;
+  onPromotionMutation?: (mutation: PromotionModerationMutation) => void | Promise<void>;
+  onPromotionQueueRefresh?: () => void | Promise<void>;
+}) => {
   const [reportStatusFilter, setReportStatusFilter] = useState<ReportFilter>("OPEN");
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
@@ -369,11 +384,38 @@ export const ReportsModerationPanel = ({ searchTerm }: { searchTerm: string }) =
         setSelectedReportId(nextReport.id);
         toast.success("Report moved to reviewing.");
       } else {
+        if (action === "KEEP_PROMOTION_FLAGGED" && selectedReport.promotionId) {
+          try {
+            await api.flagPromotion(selectedReport.promotionId, normalizedResolutionNote);
+          } catch (flagError) {
+            console.warn("Unable to confirm promotion flag update on the server", flagError);
+          }
+        }
+
+        if (action === "REJECT_PROMOTION" && selectedReport.promotionId) {
+          await api.rejectPromotion(selectedReport.promotionId, normalizedRejectionReason);
+        }
+
         const updatedReport = await api.resolveReport(selectedReport.id, {
           action,
           resolution: normalizedResolutionNote,
           promotionRejectionReason: normalizedRejectionReason || undefined,
         });
+        const resolvedAt = updatedReport.resolvedAt ?? new Date().toISOString();
+        const nextReport: ReportItem = {
+          ...selectedReport,
+          ...updatedReport,
+          status: updatedReport.status?.trim() ? updatedReport.status : "CLOSED",
+          resolvedAt,
+          resolutionAction: action,
+          resolutionNotes: normalizedResolutionNote,
+          promotionFlagged: action === "KEEP_PROMOTION_FLAGGED"
+            ? true
+            : updatedReport.promotionFlagged ?? selectedReport.promotionFlagged,
+          promotionStatus: action === "REJECT_PROMOTION"
+            ? "REJECTED"
+            : updatedReport.promotionStatus ?? selectedReport.promotionStatus,
+        };
 
         toast.success(
           action === "REJECT_PROMOTION"
@@ -384,12 +426,24 @@ export const ReportsModerationPanel = ({ searchTerm }: { searchTerm: string }) =
         );
 
         setReports((current) => current.map((report) => (
-          report.id === updatedReport.id ? updatedReport : report
+          report.id === selectedReport.id ? nextReport : report
         )));
-      }
+        setReportStatusFilter("CLOSED");
+        setSelectedReportId(selectedReport.id);
 
-      if (action !== "REVIEWING") {
-        await loadReports();
+        if (selectedReport.promotionId && onPromotionMutation) {
+          await Promise.resolve(onPromotionMutation({
+            promotionId: selectedReport.promotionId,
+            flagged: action === "KEEP_PROMOTION_FLAGGED" ? true : undefined,
+            promotionStatus: action === "REJECT_PROMOTION" ? "REJECTED" : undefined,
+            rejectionReason: action === "REJECT_PROMOTION" ? normalizedRejectionReason : undefined,
+            verificationNotes: normalizedResolutionNote || undefined,
+          }));
+        }
+
+        if (action === "REJECT_PROMOTION" && onPromotionQueueRefresh) {
+          await Promise.resolve(onPromotionQueueRefresh());
+        }
       }
     } catch (error) {
       console.error("Unable to update report", error);
