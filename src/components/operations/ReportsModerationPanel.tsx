@@ -435,7 +435,9 @@ export const ReportsModerationPanel = ({
           await Promise.resolve(onPromotionMutation({
             promotionId: selectedReport.promotionId,
             flagged: action === "KEEP_PROMOTION_FLAGGED" ? true : undefined,
-            promotionStatus: action === "REJECT_PROMOTION" ? "REJECTED" : undefined,
+            promotionStatus: action === "REJECT_PROMOTION"
+              ? "REJECTED"
+              : undefined,
             rejectionReason: action === "REJECT_PROMOTION" ? normalizedRejectionReason : undefined,
             verificationNotes: normalizedResolutionNote || undefined,
           }));

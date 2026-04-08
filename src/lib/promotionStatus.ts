@@ -4,6 +4,7 @@ const toNormalizedStatus = (value: unknown): string =>
   typeof value === "string" ? value.trim().toUpperCase() : "";
 
 const REJECTED_STATUSES = new Set(["REJECTED"]);
+const REPORTED_STATUSES = new Set(["REPORTED"]);
 const APPROVED_STATUSES = new Set(["APPROVED", "ACTIVE"]);
 const PENDING_STATUSES = new Set(["PENDING", "SUBMITTED"]);
 
@@ -14,6 +15,10 @@ const resolvePromotionStatus = (promotion: Promotion): string => {
 
   if (statuses.some((item) => REJECTED_STATUSES.has(item))) {
     return "REJECTED";
+  }
+
+  if (statuses.some((item) => REPORTED_STATUSES.has(item))) {
+    return "REPORTED";
   }
 
   if (statuses.some((item) => APPROVED_STATUSES.has(item))) {

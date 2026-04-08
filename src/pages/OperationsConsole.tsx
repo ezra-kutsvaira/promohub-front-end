@@ -29,7 +29,7 @@ import {
 import { getPromotionVerificationStatus } from "@/lib/promotionStatus";
 
 type ReviewAction = "APPROVED" | "REJECTED" | "MORE_DOCUMENTS_REQUESTED";
-type PromotionStatusFilter = "ALL" | "PENDING" | "APPROVED" | "REJECTED";
+type PromotionStatusFilter = "ALL" | "PENDING" | "REPORTED" | "APPROVED" | "REJECTED";
 type QueueStatusFilter = "ALL" | "PENDING" | "MORE_DOCUMENTS_REQUESTED";
 type ReviewSource = "api" | "embedded" | "none";
 
@@ -291,7 +291,7 @@ const matchesPromotionFilter = (status: string, filter: PromotionStatusFilter) =
 const OperationsConsole = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<QueueStatusFilter>("ALL");
-  const [promotionStatusFilter, setPromotionStatusFilter] = useState<PromotionStatusFilter>("PENDING");
+  const [promotionStatusFilter, setPromotionStatusFilter] = useState<PromotionStatusFilter>("ALL");
   const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(null);
   const [approveNote, setApproveNote] = useState("");
   const [rejectNote, setRejectNote] = useState("");
@@ -359,16 +359,17 @@ const OperationsConsole = () => {
     setIsLoadingPromotions(true);
 
     try {
-      const [businesses, pendingPromotions, approvedPromotions, rejectedPromotions] = await Promise.all([
+      const [businesses, pendingPromotions, reportedPromotions, approvedPromotions, rejectedPromotions] = await Promise.all([
         api.getAdminBusinesses().catch(() => [] as Business[]),
         api.getAdminPromotionsByStatus("PENDING"),
+        api.getAdminPromotionsByStatus("REPORTED"),
         api.getAdminPromotionsByStatus("APPROVED"),
         api.getAdminPromotionsByStatus("REJECTED"),
       ]);
 
       const businessesById = new Map(businesses.map((business) => [business.id, business]));
       const seen = new Set<number>();
-      const combinedPromotions = [...pendingPromotions, ...approvedPromotions, ...rejectedPromotions]
+      const combinedPromotions = [...pendingPromotions, ...reportedPromotions, ...approvedPromotions, ...rejectedPromotions]
         .filter((promotion) => {
           if (seen.has(promotion.id)) return false;
           seen.add(promotion.id);
@@ -1046,9 +1047,10 @@ const OperationsConsole = () => {
                     value={promotionStatusFilter}
                     onValueChange={(value) => setPromotionStatusFilter(value as PromotionStatusFilter)}
                   >
-                    <TabsList className="grid grid-cols-4">
+                    <TabsList className="grid grid-cols-5">
                       <TabsTrigger value="ALL">All</TabsTrigger>
                       <TabsTrigger value="PENDING">Pending</TabsTrigger>
+                      <TabsTrigger value="REPORTED">Reported</TabsTrigger>
                       <TabsTrigger value="APPROVED">Approved</TabsTrigger>
                       <TabsTrigger value="REJECTED">Rejected</TabsTrigger>
                     </TabsList>
@@ -1101,7 +1103,7 @@ const OperationsConsole = () => {
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">
-                                <Badge variant={status === "REJECTED" ? "destructive" : "secondary"}>
+                                <Badge variant={status === "REJECTED" || status === "REPORTED" ? "destructive" : "secondary"}>
                                   {formatStatusLabel(status)}
                                 </Badge>
                                 {promotion.flagged && <Badge variant="destructive">Flagged</Badge>}

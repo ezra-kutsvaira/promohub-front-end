@@ -1095,6 +1095,7 @@ const getPromotionStatus = (promotion: Promotion): string => {
   const statuses = [verificationStatus, status].filter(Boolean);
 
   if (statuses.includes("REJECTED")) return "REJECTED";
+  if (statuses.includes("REPORTED")) return "REPORTED";
   if (statuses.includes("APPROVED") || statuses.includes("ACTIVE")) return "APPROVED";
   if (statuses.includes("PENDING") || statuses.includes("SUBMITTED")) return "PENDING";
 
@@ -1105,6 +1106,7 @@ const statusAliases: Record<string, string[]> = {
   PENDING: ["PENDING", "SUBMITTED"],
   APPROVED: ["APPROVED", "ACTIVE"],
   REJECTED: ["REJECTED"],
+  REPORTED: ["REPORTED"],
 };
 
 const matchesRequestedStatus = (promotion: Promotion, requestedStatus: string): boolean => {
@@ -1888,6 +1890,33 @@ export const api = {
     return toReportArray(payload);
   },
   markReportReviewing: async (id: number | string) => {
+    try {
+      const directPayload = await apiRequest<ReportItem | null>(`/api/reports/${id}/reviewing`, {
+        method: "POST",
+      });
+
+      const directReport = normalizeReportItem(directPayload);
+      if (directReport.id > 0 || directReport.status || directReport.reviewStartedAt) {
+        return directReport;
+      }
+
+      const fallbackReportId = normalizeNumber(id) ?? 0;
+      return {
+        id: fallbackReportId,
+        reason: "",
+        status: "REVIEWING",
+        reviewStartedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      if (
+        !(isNotFoundError(error) ||
+          isMethodNotSupportedError(error) ||
+          isUnsupportedMediaTypeError(error))
+      ) {
+        throw error;
+      }
+    }
+
     const paths = [
       `/api/reports/${id}/reviewing`,
       `/api/reports/${id}/review`,
