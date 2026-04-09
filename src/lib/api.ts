@@ -465,14 +465,23 @@ export type Promotion = {
   categoryName: string;
   title: string;
   description: string;
-  imageUrl: string;
+  imageUrl?: string;
   startDate: string;
   endDate: string;
-  promoCode: string;
+  promoCode?: string;
   discountType: string;
   discountValue: number;
-  termsAndConditions: string;
-  location: string;
+  originalPrice?: number;
+  referenceUrl?: string;
+  redemptionChannel?: string;
+  redemptionInstructions?: string;
+  eligibilityCriteria?: string;
+  maxRedemptions?: number;
+  perCustomerLimit?: number;
+  excludedItems?: string;
+  supportContact?: string;
+  termsAndConditions?: string;
+  location?: string;
   status: string;
   verificationStatus?: string;
   verifiedAt?: string;
@@ -499,8 +508,19 @@ export type PromotionUpsertRequest = {
   promoCode?: string;
   discountType?: string;
   discountValue?: number;
+  originalPrice?: number;
+  referenceUrl?: string;
+  redemptionChannel?: string;
+  redemptionInstructions?: string;
+  eligibilityCriteria?: string;
+  maxRedemptions?: number;
+  perCustomerLimit?: number;
+  excludedItems?: string;
+  supportContact?: string;
   termsAndConditions?: string;
   location?: string;
+  status?: string;
+  verificationStatus?: string;
 };
 
 export type Category = {
