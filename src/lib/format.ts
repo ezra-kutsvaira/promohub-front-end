@@ -12,6 +12,15 @@ const normalizeDiscountType = (type?: string) => {
   return normalized;
 };
 
+const formatMoneyLabel = (value: number) => {
+  const formatter = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+
+  return `$${formatter.format(value)}`;
+};
+
 export const formatDate = (dateString?: string) => {
   if (!dateString) {
     return "";
@@ -39,7 +48,7 @@ export const formatDiscount = (type?: string, value?: number) => {
     return `${value}% OFF`;
   }
   if (normalized.includes("amount") || normalized.includes("flat") || normalized.includes("fixed")) {
-    return `${value} OFF`;
+    return `${formatMoneyLabel(value)} OFF`;
   }
   if (normalized.includes("free")) {
     return "Free";

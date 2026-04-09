@@ -670,8 +670,8 @@ const BUSINESS_PROMOTIONS_ALIAS_BASE_PATH = "/business/promotions";
 
 const toPromotionArray = (payload: PageResponse<Promotion> | Promotion[] | null | undefined): Promotion[] => {
   if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-  return payload.content ?? [];
+  if (Array.isArray(payload)) return payload.map((promotion) => normalizePromotion(promotion));
+  return (payload.content ?? []).map((promotion) => normalizePromotion(promotion));
 };
 
 const toBusinessArray = (payload: PageResponse<Business> | Business[] | null | undefined): Business[] => {
@@ -747,6 +747,43 @@ const pickFirstMatchingValue = (
   return undefined;
 };
 
+const normalizeTextValue = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+    return trimmedValue.length > 0 ? trimmedValue : undefined;
+  }
+
+  if (Array.isArray(value)) {
+    const normalizedItems = value
+      .map((entry) => normalizeTextValue(entry))
+      .filter((entry): entry is string => Boolean(entry));
+
+    return normalizedItems.length > 0 ? normalizedItems.join("\n") : undefined;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `${value}`;
+  }
+
+  return undefined;
+};
+
+const getTextFromCandidates = (
+  source: Record<string, unknown> | null,
+  candidates: string[],
+): string | undefined => {
+  if (!source) return undefined;
+
+  for (const candidate of candidates) {
+    const value = normalizeTextValue(source[candidate]);
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  return undefined;
+};
+
 const normalizeNumber = (value: unknown): number | undefined => {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -784,6 +821,177 @@ const normalizeBoolean = (value: unknown): boolean | undefined => {
   }
 
   return undefined;
+};
+
+function normalizePromotion(payload: unknown): Promotion {
+  const rootRecord = asRecord(payload);
+  const nestedSources = collectNestedRecords(payload);
+
+  const pickText = (candidates: string[]) => {
+    for (const source of nestedSources) {
+      const value = getTextFromCandidates(source, candidates);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+
+    return undefined;
+  };
+
+  const pickNumber = (candidates: string[]) =>
+    normalizeNumber(pickFirstMatchingValue(nestedSources, candidates));
+
+  const pickBoolean = (candidates: string[]) =>
+    normalizeBoolean(pickFirstMatchingValue(nestedSources, candidates));
+
+  const businessRecord = [
+    asRecord(rootRecord?.business),
+    asRecord(rootRecord?.merchant),
+    asRecord(rootRecord?.company),
+    asRecord(rootRecord?.store),
+    asRecord(rootRecord?.businessDetails),
+  ].find((value): value is Record<string, unknown> => Boolean(value));
+
+  const categoryRecord = [
+    asRecord(rootRecord?.category),
+    asRecord(rootRecord?.promotionCategory),
+    asRecord(rootRecord?.categoryDetails),
+  ].find((value): value is Record<string, unknown> => Boolean(value));
+
+  const businessId = pickNumber(["businessId", "business_id", "merchantId", "merchant_id", "storeId", "store_id"])
+    ?? normalizeNumber(businessRecord?.id ?? businessRecord?.businessId ?? businessRecord?.business_id);
+  const categoryId = pickNumber(["categoryId", "category_id"])
+    ?? normalizeNumber(categoryRecord?.id ?? categoryRecord?.categoryId ?? categoryRecord?.category_id);
+
+  return {
+    id: pickNumber(["id", "promotionId", "promotion_id", "dealId", "deal_id", "offerId", "offer_id"]) ?? 0,
+    businessId: businessId ?? 0,
+    businessName: pickText(["businessName", "business_name", "merchantName", "merchant_name", "storeName", "store_name"])
+      ?? getTextFromCandidates(businessRecord, ["businessName", "business_name", "name", "merchantName", "merchant_name", "storeName", "store_name"])
+      ?? "",
+    categoryId,
+    categoryCode: pickText(["categoryCode", "category_code"])
+      ?? getTextFromCandidates(categoryRecord, ["categoryCode", "category_code", "code"]),
+    categoryName: pickText(["categoryName", "category_name"])
+      ?? getTextFromCandidates(categoryRecord, ["categoryName", "category_name", "name", "label", "title"])
+      ?? pickText(["category", "categoryLabel", "category_label"])
+      ?? "",
+    title: pickText(["title", "promotionTitle", "promotion_title", "offerTitle", "offer_title", "name"]) ?? "",
+    description: pickText(["description", "promotionDescription", "promotion_description", "details", "summary"]) ?? "",
+    imageUrl: pickText(["imageUrl", "image_url", "bannerUrl", "banner_url", "photoUrl", "photo_url", "heroImageUrl", "hero_image_url", "thumbnailUrl", "thumbnail_url"]),
+    startDate: pickText(["startDate", "start_date", "validFrom", "valid_from", "startsAt", "starts_at", "fromDate", "from_date"]) ?? "",
+    endDate: pickText(["endDate", "end_date", "validTo", "valid_to", "endsAt", "ends_at", "toDate", "to_date"]) ?? "",
+    promoCode: pickText(["promoCode", "promo_code", "couponCode", "coupon_code", "voucherCode", "voucher_code"]),
+    discountType: pickText(["discountType", "discount_type", "discountKind", "discount_kind", "offerType", "offer_type"]) ?? "",
+    discountValue: pickNumber(["discountValue", "discount_value", "discountAmount", "discount_amount", "amountOff", "amount_off", "value"]) ?? 0,
+    originalPrice: pickNumber(["originalPrice", "original_price", "listPrice", "list_price", "basePrice", "base_price"]),
+    referenceUrl: pickText(["referenceUrl", "reference_url", "offerUrl", "offer_url", "landingPageUrl", "landing_page_url", "destinationUrl", "destination_url"]),
+    redemptionChannel: pickText(["redemptionChannel", "redemption_channel", "redeemChannel", "redeem_channel", "redemptionMethod", "redemption_method", "channel"]),
+    redemptionInstructions: pickText(["redemptionInstructions", "redemption_instructions", "howToRedeem", "how_to_redeem", "redemptionSteps", "redemption_steps", "instructions"]),
+    eligibilityCriteria: pickText(["eligibilityCriteria", "eligibility_criteria", "eligibility", "whoCanRedeem", "who_can_redeem", "customerEligibility", "customer_eligibility"]),
+    maxRedemptions: pickNumber(["maxRedemptions", "max_redemptions", "maximumRedemptions", "maximum_redemptions", "redemptionLimit", "redemption_limit"]),
+    perCustomerLimit: pickNumber(["perCustomerLimit", "per_customer_limit", "limitPerCustomer", "limit_per_customer", "customerLimit", "customer_limit"]),
+    excludedItems: pickText(["excludedItems", "excluded_items", "exclusions", "excludedProducts", "excluded_products", "excludedSkus", "excluded_skus"]),
+    supportContact: pickText(["supportContact", "support_contact", "supportPhone", "support_phone", "contactPhone", "contact_phone", "contactNumber", "contact_number", "phoneNumber", "phone_number", "supportEmail", "support_email"])
+      ?? getTextFromCandidates(businessRecord, ["supportContact", "support_contact", "phoneNumber", "phone_number", "contactEmail", "contact_email"]),
+    termsAndConditions: pickText(["termsAndConditions", "terms_and_conditions", "terms", "conditions"]),
+    location: pickText(["location", "branch", "branchLocation", "branch_location", "storeLocation", "store_location", "address"])
+      ?? getTextFromCandidates(businessRecord, ["address", "location", "branchLocation", "branch_location"]),
+    status: pickText(["status", "promotionStatus", "promotion_status", "state"]) ?? "",
+    verificationStatus: pickText(["verificationStatus", "verification_status", "approvalStatus", "approval_status"]),
+    verifiedAt: pickText(["verifiedAt", "verified_at", "approvedAt", "approved_at"]),
+    verifiedById: pickNumber(["verifiedById", "verified_by_id", "approvedById", "approved_by_id", "reviewerId", "reviewer_id"]),
+    verifiedByEmail: pickText(["verifiedByEmail", "verified_by_email", "approvedByEmail", "approved_by_email", "reviewerEmail", "reviewer_email"]),
+    verificationNotes: pickText(["verificationNotes", "verification_notes", "reviewNotes", "review_notes"]),
+    rejectionReason: pickText(["rejectionReason", "rejection_reason", "declineReason", "decline_reason"]),
+    flagged: pickBoolean(["flagged", "isFlagged", "promotionFlagged", "promotion_flagged"]) ?? false,
+    riskScore: pickNumber(["riskScore", "risk_score", "promotionRiskScore", "promotion_risk_score"]),
+    createdAt: pickText(["createdAt", "created_at", "submittedAt", "submitted_at", "publishedAt", "published_at"]) ?? "",
+    updatedAt: pickText(["updatedAt", "updated_at", "modifiedAt", "modified_at", "lastUpdatedAt", "last_updated_at"])
+      ?? pickText(["createdAt", "created_at", "submittedAt", "submitted_at"])
+      ?? "",
+  };
+}
+
+function normalizePromotionCollection(
+  payload: PageResponse<Promotion> | Promotion[] | null | undefined,
+): PageResponse<Promotion> | Promotion[] | null | undefined {
+  if (!payload) {
+    return payload;
+  }
+
+  if (Array.isArray(payload)) {
+    return payload.map((promotion) => normalizePromotion(promotion));
+  }
+
+  return {
+    ...payload,
+    content: (payload.content ?? []).map((promotion) => normalizePromotion(promotion)),
+  };
+}
+
+const hasMeaningfulPromotion = (promotion: Promotion) =>
+  promotion.id > 0
+  || Boolean(promotion.title?.trim())
+  || Boolean(promotion.description?.trim())
+  || Boolean(promotion.businessName?.trim());
+
+const extractPromotionFromPayload = (
+  payload: unknown,
+  promotionId?: number | string,
+): Promotion | null => {
+  const normalizedPromotionId = promotionId === undefined ? undefined : String(promotionId);
+
+  if (Array.isArray(payload)) {
+    const promotions = payload
+      .map((candidate) => normalizePromotion(candidate))
+      .filter((candidate) => hasMeaningfulPromotion(candidate));
+
+    if (normalizedPromotionId) {
+      const match = promotions.find((candidate) => String(candidate.id) === normalizedPromotionId);
+      if (match) {
+        return match;
+      }
+    }
+
+    return promotions[0] ?? null;
+  }
+
+  const recordPayload = asRecord(payload);
+  if (recordPayload) {
+    const listCandidates = [
+      Array.isArray(recordPayload.content) ? recordPayload.content : undefined,
+      Array.isArray(recordPayload.data) ? recordPayload.data : undefined,
+      Array.isArray(recordPayload.items) ? recordPayload.items : undefined,
+      Array.isArray(recordPayload.results) ? recordPayload.results : undefined,
+    ].find((value): value is unknown[] => Array.isArray(value));
+
+    if (listCandidates) {
+      return extractPromotionFromPayload(listCandidates, promotionId);
+    }
+
+    const nestedPromotionRecord = [
+      asRecord(recordPayload.data),
+      asRecord(recordPayload.promotion),
+      asRecord(recordPayload.offer),
+      asRecord(recordPayload.deal),
+    ].find((value): value is Record<string, unknown> => Boolean(value));
+
+    if (nestedPromotionRecord) {
+      return extractPromotionFromPayload(nestedPromotionRecord, promotionId);
+    }
+  }
+
+  const normalizedPromotion = normalizePromotion(payload);
+  if (!hasMeaningfulPromotion(normalizedPromotion)) {
+    return null;
+  }
+
+  if (normalizedPromotionId && normalizedPromotion.id > 0 && String(normalizedPromotion.id) !== normalizedPromotionId) {
+    return null;
+  }
+
+  return normalizedPromotion;
 };
 
 const normalizeReportItem = (payload: unknown): ReportItem => {
@@ -1232,14 +1440,15 @@ export const api = {
   requestPasswordReset: (email: string) => apiRequest<void>("/api/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email }), skipAuth: true }),
   confirmPasswordReset: (payload: { token: string; newPassword: string; confirmNewPassword: string }) => apiRequest<void>("/api/auth/password-reset/confirm", { method: "POST", body: JSON.stringify(payload), skipAuth: true }),
 
-  getPromotions: (params?: Record<string, string>) => {
+  getPromotions: async (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`);
+    const payload = await apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`);
+    return normalizePromotionCollection(payload) as PageResponse<Promotion>;
   },
 
-  getBusinessPromotions: (params?: Record<string, string>) => {
+  getBusinessPromotions: async (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return apiRequestWithAlternatives<PageResponse<Promotion> | Promotion[]>(
+    const payload = await apiRequestWithAlternatives<PageResponse<Promotion> | Promotion[]>(
       [
         `/api/promotions${query}`,
         `${BUSINESS_PROMOTIONS_BASE_PATH}${query}`,
@@ -1249,6 +1458,7 @@ export const api = {
       {},
       [400, 404]
     );
+    return normalizePromotionCollection(payload) as PageResponse<Promotion> | Promotion[];
   },
 
   getCurrentUserBusinessPromotions: async (businessId: number | string, ownerId?: number | string) => {
@@ -1324,14 +1534,65 @@ export const api = {
 
     throw new Error("Unable to load business promotions.");
   },
+  getPromotion: async (id: string | number) => {
+    const normalizedId = encodeURIComponent(String(id));
+    const candidatePaths = [
+      `${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`,
+      `${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`,
+      `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}/${id}`,
+      `${PUBLIC_PROMOTIONS_BASE_PATH}?id=${normalizedId}`,
+      `${PUBLIC_PROMOTIONS_BASE_PATH}?promotionId=${normalizedId}`,
+      `${PUBLIC_PROMOTIONS_BASE_PATH}?promotion_id=${normalizedId}`,
+      `${BUSINESS_PROMOTIONS_BASE_PATH}?id=${normalizedId}`,
+      `${BUSINESS_PROMOTIONS_BASE_PATH}?promotionId=${normalizedId}`,
+      `${BUSINESS_PROMOTIONS_ALIAS_BASE_PATH}?id=${normalizedId}`,
+      `${PUBLIC_PROMOTIONS_BASE_PATH}?page=0&size=100`,
+    ];
 
+    const promotionCandidates: Promotion[] = [];
+    let lastError: unknown;
 
-  getPromotion: (id: string | number) => apiRequest<Promotion>(`${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`),
-  createPromotion: (payload: PromotionUpsertRequest) => apiRequestWithAlternatives<Promotion>(
-    [PUBLIC_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_ALIAS_BASE_PATH],
-    { method: "POST", body: JSON.stringify(payload) },
-    [404]
-  ),
+    for (const path of candidatePaths) {
+      try {
+        const payload = await apiRequest<unknown>(path);
+        const extractedPromotion = extractPromotionFromPayload(payload, id);
+        if (extractedPromotion) {
+          promotionCandidates.push(extractedPromotion);
+        }
+      } catch (error) {
+        lastError = error;
+        const canTryAnotherPath =
+          isNotFoundError(error)
+          || isMethodNotSupportedError(error)
+          || isUnauthorizedError(error)
+          || (error instanceof ApiError && [401, 403, 404, 405].includes(error.status));
+
+        if (canTryAnotherPath) {
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    if (promotionCandidates.length > 0) {
+      return normalizePromotion({ candidates: promotionCandidates });
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+
+    throw new Error("Unable to load promotion.");
+  },
+  createPromotion: async (payload: PromotionUpsertRequest) =>
+    normalizePromotion(
+      await apiRequestWithAlternatives<unknown>(
+        [PUBLIC_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_BASE_PATH, BUSINESS_PROMOTIONS_ALIAS_BASE_PATH],
+        { method: "POST", body: JSON.stringify(payload) },
+        [404]
+      )
+    ),
   updatePromotion: async (id: string | number, payload: PromotionUpsertRequest) => {
     const normalizedPromotionId = Number(id);
     const promotionIdFields = Number.isNaN(normalizedPromotionId)
@@ -1354,7 +1615,8 @@ export const api = {
     let lastError: unknown;
     for (const bodyCandidate of bodyCandidates) {
       try {
-        return await apiRequestWithMethodAndPathAlternatives<Promotion>(
+        return normalizePromotion(
+          await apiRequestWithMethodAndPathAlternatives<unknown>(
           [
             `${PUBLIC_PROMOTIONS_BASE_PATH}/${id}`,
             `${BUSINESS_PROMOTIONS_BASE_PATH}/${id}`,
@@ -1362,6 +1624,7 @@ export const api = {
           ],
           ["PATCH", "PUT"],
           JSON.stringify(bodyCandidate),
+          )
         );
       } catch (error) {
         lastError = error;
@@ -1416,11 +1679,13 @@ export const api = {
     let lastError: unknown;
     for (const bodyCandidate of bodyCandidates) {
       try {
-        return await apiRequestWithMethodAndPathAlternatives<Promotion>(
+        return normalizePromotion(
+          await apiRequestWithMethodAndPathAlternatives<unknown>(
           submitPaths,
           methods,
           bodyCandidate ? JSON.stringify(bodyCandidate) : undefined,
           [400, 404, 405]
+          )
         );
       } catch (error) {
         lastError = error;

@@ -38,6 +38,85 @@ const reportReasonOptions = [
   { value: "OTHER", label: "Other" },
 ];
 
+const normalizeDiscountType = (type?: string) => {
+  if (!type) {
+    return "";
+  }
+
+  return type.trim().toLowerCase().replace(/[\s-]+/g, "_");
+};
+
+const formatAmount = (value?: number) => {
+  if (value === undefined || value === null || !Number.isFinite(value)) {
+    return "";
+  }
+
+  const formattedValue = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+
+  return `$${formattedValue}`;
+};
+
+const formatRedemptionChannel = (channel?: string) => {
+  const normalized = channel?.trim().toUpperCase().replace(/[\s-]+/g, "_");
+
+  switch (normalized) {
+    case "ONLINE":
+      return "Online only";
+    case "IN_STORE":
+    case "INSTORE":
+      return "In-store only";
+    case "BOTH":
+      return "Online and in-store";
+    default:
+      return channel || "Check with the business before redeeming.";
+  }
+};
+
+const getSavingsDetails = (promotion: Promotion) => {
+  if (promotion.originalPrice === undefined || promotion.originalPrice === null) {
+    return { savingsValue: undefined, finalPriceValue: undefined };
+  }
+
+  const normalizedDiscountType = normalizeDiscountType(promotion.discountType);
+
+  if (normalizedDiscountType.includes("percent")) {
+    const savingsValue = (promotion.originalPrice * promotion.discountValue) / 100;
+    return {
+      savingsValue,
+      finalPriceValue: Math.max(promotion.originalPrice - savingsValue, 0),
+    };
+  }
+
+  if (
+    normalizedDiscountType.includes("amount")
+    || normalizedDiscountType.includes("flat")
+    || normalizedDiscountType.includes("fixed")
+  ) {
+    const savingsValue = Math.min(promotion.discountValue, promotion.originalPrice);
+    return {
+      savingsValue,
+      finalPriceValue: Math.max(promotion.originalPrice - savingsValue, 0),
+    };
+  }
+
+  if (normalizedDiscountType.includes("free")) {
+    return {
+      savingsValue: promotion.originalPrice,
+      finalPriceValue: 0,
+    };
+  }
+
+  return { savingsValue: undefined, finalPriceValue: undefined };
+};
+
+const isNotFoundPromotionError = (message: string) => {
+  const normalizedMessage = message.toLowerCase();
+  return normalizedMessage.includes("not found") || normalizedMessage.includes("404");
+};
+
 const PromotionDetail = () => {
   const { id } = useParams();
   const { isAuthenticated, user } = useAuth();
@@ -50,6 +129,7 @@ const PromotionDetail = () => {
 
   useEffect(() => {
     let isMounted = true;
+
     const loadPromotion = async () => {
       if (!id) {
         setIsLoading(false);
@@ -77,13 +157,7 @@ const PromotionDetail = () => {
         await api.trackPromotionView(id);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to log promotion view.";
-      // toast.info(message);
-      //Suppress Warnings : Revisit
-      //const normalizedMessage = message.toLowerCase();
-      //const isNotFoundViewTrackingError =
-      //normalizedMessage.includes("not found") || normalizedMessage.includes("404");
-
-        if (!isNotFoundPromotionError (message)) {
+        if (!isNotFoundPromotionError(message)) {
           toast.info(message);
         }
       } finally {
@@ -119,9 +193,20 @@ const PromotionDetail = () => {
 
   const discountLabel = formatDiscount(promotion.discountType, promotion.discountValue);
   const terms = promotion.termsAndConditions
-    ? promotion.termsAndConditions.split(/\n+/).filter(Boolean)
+    ? promotion.termsAndConditions.split(/\n+/).map((term) => term.trim()).filter(Boolean)
     : [];
   const isVerified = ["APPROVED", "ACTIVE"].includes(promotion.status);
+  const redemptionChannelValue = promotion.redemptionChannel?.trim();
+  const redemptionChannelLabel = redemptionChannelValue
+    ? formatRedemptionChannel(redemptionChannelValue)
+    : "";
+  const supportContact = promotion.supportContact?.trim();
+  const redemptionInstructions = promotion.redemptionInstructions?.trim();
+  const hasRedemptionInfo = Boolean(redemptionChannelLabel || supportContact || redemptionInstructions);
+  const { savingsValue, finalPriceValue } = getSavingsDetails(promotion);
+  const hasRedemptionLimits =
+    promotion.maxRedemptions !== undefined || promotion.perCustomerLimit !== undefined;
+  const showHeroImage = Boolean(promotion.imageUrl?.trim());
 
   const handleShare = async () => {
     try {
@@ -150,10 +235,6 @@ const PromotionDetail = () => {
   };
 
   const submitReport = async () => {
-    if (!promotion) {
-      return;
-    }
-
     const normalizedReason = reportReason.trim();
     const normalizedDetails = reportDetails.trim();
 
@@ -187,6 +268,7 @@ const PromotionDetail = () => {
       toast.info("Please sign in to save promotions.");
       return;
     }
+
     try {
       await api.savePromotion(promotion.id);
       toast.success("Promotion saved to your list.");
@@ -195,12 +277,6 @@ const PromotionDetail = () => {
       toast.error(message);
     }
   };
-
-  const isNotFoundPromotionError = (message: string) => {
-    const normalizedMessage = message.toLowerCase();
-    return normalizedMessage.includes("not found") || normalizedMessage.includes("404");
-  };
-
 
   const handleRedeem = async () => {
     try {
@@ -274,7 +350,6 @@ const PromotionDetail = () => {
       </Dialog>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Breadcrumb */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -287,22 +362,38 @@ const PromotionDetail = () => {
           <span className="text-foreground">{promotion.title}</span>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
             >
-              {/* Image */}
-              <div className="relative h-96 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg mb-6 flex items-center justify-center overflow-hidden">
-                <div className="text-center p-8">
-                  <div className="text-6xl font-bold text-primary mb-4">{discountLabel}</div>
-                  <div className="text-2xl font-semibold text-foreground">{promotion.title}</div>
+              <div className="relative mb-6 h-96 overflow-hidden rounded-lg bg-gradient-to-br from-primary/10 via-background to-accent/10">
+                {showHeroImage && (
+                  <img
+                    src={promotion.imageUrl}
+                    alt={promotion.title}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                )}
+
+                <div
+                  className={`absolute inset-0 ${
+                    showHeroImage
+                      ? "bg-gradient-to-t from-background/95 via-background/70 to-background/10"
+                      : "bg-gradient-to-br from-primary/10 via-background to-accent/10"
+                  }`}
+                />
+
+                <div className="relative flex h-full flex-col justify-end p-8">
+                  <h1 className="max-w-3xl text-3xl font-bold text-foreground md:text-4xl">
+                    {promotion.title}
+                  </h1>
                 </div>
+
                 {isVerified && (
-                  <div className="absolute top-4 right-4">
+                  <div className="absolute right-4 top-4">
                     <Badge className="bg-verified text-verified-foreground flex items-center gap-1 text-base px-3 py-1">
                       <ShieldCheck className="h-4 w-4" />
                       Verified Business
@@ -311,54 +402,142 @@ const PromotionDetail = () => {
                 )}
               </div>
 
-              {/* Business Info */}
-              <Card className="p-6 mb-6">
-                <div className="flex items-start justify-between mb-4">
+              <Card className="mb-6 p-6">
+                <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h2 className="text-2xl font-bold text-foreground">{promotion.businessName}</h2>
-                      {isVerified && <ShieldCheck className="h-5 w-5 text-verified" />}
-                    </div>
-                    <Badge variant="secondary">{promotion.categoryName}</Badge>
+                    <h2 className="mb-1 text-2xl font-bold text-foreground">{promotion.businessName}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      This promotion is offered by the business listed below.
+                    </p>
                   </div>
-                  <div className="flex gap-2">
+
+                  <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" onClick={handleShare}>
-                      <Share2 className="h-4 w-4 mr-2" />
+                      <Share2 className="mr-2 h-4 w-4" />
                       Share
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleReport}>
-                      <Flag className="h-4 w-4 mr-2" />
+                      <Flag className="mr-2 h-4 w-4" />
                       Report
                     </Button>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-4 w-4" />
-                    {promotion.location}
+                <div className="grid gap-4 text-sm sm:grid-cols-2">
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Category
+                    </p>
+                    <p className="mt-2 font-medium text-foreground">{promotion.categoryName}</p>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-4 w-4" />
-                    {formatDate(promotion.startDate)} - {formatDate(promotion.endDate)}
+
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Location
+                    </p>
+                    <p className="mt-2 flex items-center gap-2 font-medium text-foreground">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      {promotion.location || "Location not provided"}
+                    </p>
                   </div>
                 </div>
               </Card>
 
-              {/* Description */}
-              <Card className="p-6 mb-6">
-                <h3 className="text-xl font-semibold mb-4">About This Promotion</h3>
-                <p className="text-muted-foreground leading-relaxed">{promotion.description}</p>
+              <Card className="mb-6 p-6">
+                <h3 className="mb-4 text-xl font-semibold">About This Promotion</h3>
+                <p className="leading-relaxed text-muted-foreground">{promotion.description}</p>
+
+                {(promotion.eligibilityCriteria || promotion.excludedItems) && (
+                  <div className="mt-6 grid gap-4 border-t pt-6 md:grid-cols-2">
+                    {promotion.eligibilityCriteria && (
+                      <div className="rounded-lg border bg-muted/30 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Eligibility
+                        </p>
+                        <p className="mt-2 text-sm text-foreground">
+                          {promotion.eligibilityCriteria}
+                        </p>
+                      </div>
+                    )}
+
+                    {promotion.excludedItems && (
+                      <div className="rounded-lg border bg-muted/30 p-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Exclusions
+                        </p>
+                        <p className="mt-2 text-sm text-foreground">
+                          {promotion.excludedItems}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </Card>
 
-              {/* Terms & Conditions */}
+              <Card className="mb-6 p-6">
+                <h3 className="mb-4 text-xl font-semibold">How To Redeem</h3>
+
+                {hasRedemptionInfo ? (
+                  <>
+                    {(redemptionChannelLabel || supportContact) && (
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {redemptionChannelLabel && (
+                          <div className="rounded-lg border bg-muted/30 p-4">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Redemption Channel
+                            </p>
+                            <p className="mt-2 text-sm font-medium text-foreground">{redemptionChannelLabel}</p>
+                          </div>
+                        )}
+
+                        {supportContact && (
+                          <div className="rounded-lg border bg-muted/30 p-4">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Support Contact
+                            </p>
+                            <p className="mt-2 text-sm font-medium text-foreground">
+                              {supportContact}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {redemptionInstructions && (
+                      <div className="mt-6">
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Instructions
+                        </p>
+                        <p className="leading-relaxed text-muted-foreground">
+                          {redemptionInstructions}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Redemption details are not available for this promotion yet.
+                  </p>
+                )}
+
+                {promotion.referenceUrl && (
+                  <div className="mt-6">
+                    <Button asChild variant="outline">
+                      <a href={promotion.referenceUrl} target="_blank" rel="noreferrer">
+                        View Official Offer Page
+                      </a>
+                    </Button>
+                  </div>
+                )}
+              </Card>
+
               <Card className="p-6">
-                <h3 className="text-xl font-semibold mb-4">Terms & Conditions</h3>
+                <h3 className="mb-4 text-xl font-semibold">Terms & Conditions</h3>
                 {terms.length > 0 ? (
                   <ul className="space-y-2">
                     {terms.map((term, index) => (
                       <li key={index} className="flex items-start gap-2 text-muted-foreground">
-                        <span className="text-primary mt-1">•</span>
+                        <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />
                         <span>{term}</span>
                       </li>
                     ))}
@@ -370,7 +549,6 @@ const PromotionDetail = () => {
             </motion.div>
           </div>
 
-          {/* Sidebar */}
           <div className="lg:col-span-1">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -378,65 +556,119 @@ const PromotionDetail = () => {
               transition={{ duration: 0.4, delay: 0.2 }}
               className="sticky top-24 space-y-6"
             >
-              {/* Price Card */}
               <Card className="p-6">
-                <div className="text-center mb-4">
-                  <div className="text-4xl font-bold text-primary mb-2">
-                    {discountLabel}
+                <div className="mb-5">
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Deal Snapshot
+                  </p>
+                  <div className="text-4xl font-bold text-primary">
+                    {discountLabel || "Special offer"}
                   </div>
-                  <Badge className="bg-destructive text-destructive-foreground font-bold">
-                    Save {discountLabel}
-                  </Badge>
                 </div>
-                <Button className="w-full" size="lg" onClick={handleRedeem}>
+
+                <div className="space-y-3 text-sm">
+                  {promotion.promoCode && (
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Promo code</span>
+                      <span className="rounded-md bg-muted px-2 py-1 font-mono text-foreground">
+                        {promotion.promoCode}
+                      </span>
+                    </div>
+                  )}
+
+                  {promotion.originalPrice !== undefined && (
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Original price</span>
+                      <span className="font-medium text-foreground">{formatAmount(promotion.originalPrice)}</span>
+                    </div>
+                  )}
+
+                  {savingsValue !== undefined && (
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">You save</span>
+                      <span className="font-medium text-foreground">{formatAmount(savingsValue)}</span>
+                    </div>
+                  )}
+
+                  {finalPriceValue !== undefined && (
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Estimated final price</span>
+                      <span className="font-semibold text-foreground">{formatAmount(finalPriceValue)}</span>
+                    </div>
+                  )}
+                </div>
+
+                <Button className="mt-5 w-full" size="lg" onClick={handleRedeem}>
                   Get This Deal
                 </Button>
-                <Button className="w-full mt-3" variant="outline" onClick={handleSave}>
+                <Button className="mt-3 w-full" variant="outline" onClick={handleSave}>
                   Save Promotion
                 </Button>
               </Card>
 
-              {/* Validity Card */}
               <Card className="p-6">
-                <h4 className="font-semibold mb-3 flex items-center gap-2">
+                <h4 className="mb-3 flex items-center gap-2 font-semibold">
                   <Calendar className="h-4 w-4 text-primary" />
                   Validity Period
                 </h4>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Starts:</span>
                     <span className="font-medium">{formatDate(promotion.startDate)}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Ends:</span>
                     <span className="font-medium">{formatDate(promotion.endDate)}</span>
                   </div>
                 </div>
               </Card>
 
-              {isVerified && (
-                <Card className="p-6 bg-verified/5 border-verified/20">
+              <Card className="p-6">
+                <h4 className="mb-3 font-semibold">Redemption Limits</h4>
+                {hasRedemptionLimits ? (
+                  <div className="space-y-2 text-sm">
+                    {promotion.maxRedemptions !== undefined && (
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">Total redemptions:</span>
+                        <span className="font-medium">{promotion.maxRedemptions}</span>
+                      </div>
+                    )}
+                    {promotion.perCustomerLimit !== undefined && (
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">Per customer:</span>
+                        <span className="font-medium">{promotion.perCustomerLimit}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No customer-specific redemption limits were provided for this promotion.
+                  </p>
+                )}
+              </Card>
+
+              <Card className={`p-6 ${isVerified ? "border-verified/20 bg-verified/5" : "bg-muted/50"}`}>
+                <div className="space-y-4">
+                  {isVerified && (
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck className="mt-0.5 h-6 w-6 flex-shrink-0 text-verified" />
+                      <div>
+                        <h4 className="mb-1 font-semibold text-verified">Verified Business</h4>
+                        <p className="text-sm text-muted-foreground">
+                          This promotion is from a verified business. All documents have been reviewed by our team.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-start gap-3">
-                    <ShieldCheck className="h-6 w-6 text-verified flex-shrink-0 mt-0.5" />
+                    <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
                     <div>
-                      <h4 className="font-semibold text-verified mb-1">Verified Business</h4>
-                      <p className="text-sm text-muted-foreground">
-                        This promotion is from a verified business. All documents have been reviewed by our team.
+                      <h4 className="mb-1 text-sm font-semibold">Stay Safe</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Always verify the promotion in-store and report suspicious activity if any detail looks incorrect.
                       </p>
                     </div>
-                  </div>
-                </Card>
-              )}
-
-              {/* Safety Info */}
-              <Card className="p-6 bg-muted/50">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-semibold mb-1 text-sm">Stay Safe</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Always verify the promotion in-store and report suspicious activity.
-                    </p>
                   </div>
                 </div>
               </Card>
