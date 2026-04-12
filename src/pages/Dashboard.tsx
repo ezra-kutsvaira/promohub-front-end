@@ -12,6 +12,12 @@ import { toast } from "@/components/ui/sonner";
 import { useEffect, useMemo, useState } from "react";
 import { api, type Business, type BusinessVerificationReview, type PageResponse, type PlatformAnalytics, type Promotion, type SavedPromotion } from "@/lib/api";
 import {
+  formatNotificationTimestamp,
+  getNotificationEventLabel,
+  getNotificationTargetPath,
+} from "@/lib/notification-utils";
+import { useNotifications } from "@/lib/notifications";
+import {
   getPromotionVerificationStatus,
   isApprovedPromotion,
   isPendingPromotion,
@@ -244,9 +250,9 @@ const PromotionModerationCard = ({
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { notifications, unreadCount, markRead } = useNotifications();
   const [savedPromotions, setSavedPromotions] = useState<SavedPromotion[]>([]);
   const [savedPromotionDetails, setSavedPromotionDetails] = useState<Promotion[]>([]);
-  const [notificationsCount, setNotificationsCount] = useState(0);
   const [platformAnalytics, setPlatformAnalytics] = useState<PlatformAnalytics | null>(null);
   const [pendingPromotionsCount, setPendingPromotionsCount] = useState(0);
   const [businessPromotions, setBusinessPromotions] = useState<Promotion[]>([]);
@@ -291,10 +297,6 @@ const Dashboard = () => {
           );
           if (!isMounted) return;
           setSavedPromotionDetails(details.filter(Boolean) as Promotion[]);
-
-          const notifications = await api.getNotifications();
-          if (!isMounted) return;
-          setNotificationsCount(notifications.filter((item) => !item.read).length);
         }
 
         if (isAdmin) {
@@ -376,6 +378,7 @@ const Dashboard = () => {
   const pendingPromotions = promotionsWithNewlyCreated.filter(isPendingPromotion);
   const approvedPromotions = promotionsWithNewlyCreated.filter(isApprovedPromotion);
   const rejectedPromotions = promotionsWithNewlyCreated.filter(isRejectedPromotion);
+  const recentNotifications = notifications.slice(0, 4);
 
   const isSubmittingPromotionAction = (promotionId: number) => promotionActionId === promotionId;
 
@@ -437,6 +440,19 @@ const Dashboard = () => {
     }
   };
 
+  const handleNotificationOpen = async (notificationId: number, isRead: boolean) => {
+    if (isRead) {
+      return;
+    }
+
+    try {
+      await markRead(notificationId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update that notification.";
+      toast.error(message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -485,10 +501,10 @@ const Dashboard = () => {
           <Card className="border-border">
             <CardHeader>
               <CardTitle className="text-lg">Messages</CardTitle>
-              <CardDescription>Updates from PromoHub support.</CardDescription>
+              <CardDescription>Unread notification updates.</CardDescription>
             </CardHeader>
             <CardContent className="text-3xl font-semibold">
-              {isBusiness ? "—" : notificationsCount}
+              {unreadCount}
             </CardContent>
           </Card>
         </section>
@@ -613,7 +629,7 @@ const Dashboard = () => {
                     Set notifications so you never miss a closing promotion.
                   </p>
                 </div>
-                <Button variant="outline" className="ml-auto" onClick={() => toast.info("Use Account Settings to configure notification subscriptions.")}>
+                <Button variant="outline" className="ml-auto" onClick={() => toast.info("Use Account Settings to configure notification delivery preferences.")}>
                   Set reminder
                 </Button>
               </div>
@@ -674,6 +690,57 @@ const Dashboard = () => {
                   </div>
                 </>
               )}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section>
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle>Recent notifications</CardTitle>
+              <CardDescription>
+                Moderation decisions, review updates, and other account activity.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {recentNotifications.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No notifications yet. New approval and review events will appear here.
+                </p>
+              )}
+
+              {recentNotifications.map((notification) => {
+                const targetPath = getNotificationTargetPath(notification);
+
+                return (
+                  <div key={notification.id} className="rounded-lg border border-border p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={notification.read ? "secondary" : "default"}>
+                        {getNotificationEventLabel(notification.eventType)}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {formatNotificationTimestamp(notification.createdAt)}
+                      </span>
+                    </div>
+                    <p className="mt-3 font-semibold text-foreground">{notification.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{notification.message}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button size="sm" variant={notification.read ? "outline" : "default"} asChild>
+                        <Link
+                          to={targetPath}
+                          onClick={() => {
+                            void handleNotificationOpen(notification.id, notification.read);
+                          }}
+                        >
+                          Open update
+                          <ArrowUpRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                      {!notification.read && <Badge variant="outline">Unread</Badge>}
+                    </div>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </section>

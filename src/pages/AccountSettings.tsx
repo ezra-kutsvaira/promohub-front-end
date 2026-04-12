@@ -1,9 +1,9 @@
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { NotificationPreferencesPanel } from "@/components/NotificationPreferencesPanel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/lib/auth";
 import { toast } from "@/components/ui/sonner";
 import { api } from "@/lib/api";
@@ -102,35 +102,7 @@ const AccountSettings = () => {
           </Card>
 
           <div className="space-y-6">
-            <Card className="border-border">
-              <CardHeader>
-                <CardTitle>Notifications</CardTitle>
-                <CardDescription>Choose how you hear from us.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-foreground">Promotion reminders</p>
-                    <p className="text-sm text-muted-foreground">Get alerts before deals expire.</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-foreground">New deals near you</p>
-                    <p className="text-sm text-muted-foreground">Highlights based on your city.</p>
-                  </div>
-                  <Switch />
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-foreground">Product updates</p>
-                    <p className="text-sm text-muted-foreground">Receive product launch notes.</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-              </CardContent>
-            </Card>
+            <NotificationPreferencesPanel />
 
             {user.role === "BUSINESS_OWNER" && (
               <Card className="border-border">

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/lib/auth";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,6 +65,7 @@ export const Navbar = () => {
               </>
             )}
             <div className="flex items-center gap-3 ml-4">
+              {isAuthenticated && <NotificationCenter />}
               <Button
                 variant="ghost"
                 size="icon"
@@ -126,6 +128,7 @@ export const Navbar = () => {
 
           {/* Mobile Menu Button */}
           <div className="flex items-center gap-2 md:hidden">
+            {isAuthenticated && <NotificationCenter />}
             <Button
               variant="ghost"
               size="icon"

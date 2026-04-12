@@ -571,13 +571,56 @@ export type SavedPromotion = {
   savedAt: string;
 };
 
+export type NotificationChannel = "IN_APP" | "EMAIL" | "SMS" | "WHATSAPP" | string;
+
+export type NotificationEventType =
+  | "PROMOTION_APPROVED"
+  | "PROMOTION_REJECTED"
+  | "PROMOTION_FLAGGED_AFTER_REPORTS"
+  | "PROMOTION_REPORT_UNDER_REVIEW"
+  | "PROMOTION_KEPT_FLAGGED_AFTER_REPORT_REVIEW"
+  | "PROMOTION_REJECTED_AFTER_REPORT_REVIEW"
+  | "ROADSHOW_EVENT_APPROVED"
+  | string;
+
 export type NotificationItem = {
   id: number;
-  channel: string;
+  channel: NotificationChannel;
+  eventType?: NotificationEventType;
   title: string;
   message: string;
+  promotionId?: number | null;
+  reportId?: number | null;
+  actionUrl?: string | null;
   read: boolean;
+  readAt?: string | null;
   createdAt: string;
+};
+
+export type NotificationUnreadCount = {
+  unreadCount: number;
+};
+
+export type NotificationPreference = {
+  id: number;
+  eventType: NotificationEventType;
+  active: boolean;
+  emailEnabled: boolean;
+  smsEnabled: boolean;
+  whatsappEnabled: boolean;
+  emailAddress?: string | null;
+  phoneNumber?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type NotificationPreferenceUpdatePayload = {
+  active?: boolean;
+  emailEnabled?: boolean;
+  smsEnabled?: boolean;
+  whatsappEnabled?: boolean;
+  emailAddress?: string;
+  phoneNumber?: string;
 };
 
 export type NotificationSubscription = { id: number; channel: string; destination: string; enabled: boolean };
@@ -1735,7 +1778,20 @@ export const api = {
   savePromotion: (promotionId: string | number) => apiRequest(`/api/users/saved-promotions/${promotionId}`, { method: "POST" }),
   removeSavedPromotion: (promotionId: string | number) => apiRequest(`/api/users/saved-promotions/${promotionId}`, { method: "DELETE" }),
   getNotifications: () => apiRequest<NotificationItem[]>("/api/users/notifications"),
+  getUnreadNotificationCount: () =>
+    apiRequest<NotificationUnreadCount>("/api/users/notifications/unread-count"),
   markNotificationRead: (notificationId: number | string) => apiRequest<void>(`/api/users/notifications/${notificationId}/read`, { method: "POST" }),
+  markAllNotificationsRead: () => apiRequest<void>("/api/users/notifications/read-all", { method: "POST" }),
+  getNotificationPreferences: () =>
+    apiRequest<NotificationPreference[]>("/api/users/notification-preferences"),
+  updateNotificationPreference: (
+    eventType: NotificationEventType,
+    payload: NotificationPreferenceUpdatePayload,
+  ) =>
+    apiRequest<NotificationPreference>(
+      `/api/users/notification-preferences/${encodeURIComponent(eventType)}`,
+      { method: "PUT", body: JSON.stringify(payload) },
+    ),
   getNotificationSubscriptions: () => apiRequest<NotificationSubscription[]>("/api/users/notification-subscriptions"),
   createNotificationSubscription: (payload: { channel: string; destination: string }) => apiRequest<NotificationSubscription>("/api/users/notification-subscriptions", { method: "POST", body: JSON.stringify(payload) }),
   deleteNotificationSubscription: (subscriptionId: number | string) => apiRequest<void>(`/api/users/notification-subscriptions/${subscriptionId}`, { method: "DELETE" }),
