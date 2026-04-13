@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Shield, Menu, X, Moon, Sun, User } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import {
   DropdownMenu,
@@ -17,12 +18,58 @@ import {
 
 export const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [businessSetupStatus, setBusinessSetupStatus] = useState<"unknown" | "required" | "complete">("unknown");
   const { resolvedTheme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
 
   const isDarkMode = resolvedTheme === "dark";
   const isAuthenticated = Boolean(user);
   const roleLabel = user?.role ? user.role.toLowerCase().replace("_", " ") : "";
+  const businessOwnerAction =
+    user?.role === "BUSINESS_OWNER"
+      ? businessSetupStatus === "required"
+        ? { to: "/create-business-owner-account", label: "Complete setup" }
+        : businessSetupStatus === "complete"
+          ? { to: "/promotions/new", label: "Create Promotion" }
+          : null
+      : null;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!user || user.role !== "BUSINESS_OWNER") {
+      setBusinessSetupStatus("unknown");
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const loadBusinessSetupStatus = async () => {
+      try {
+        await api.getCurrentUserBusiness(user.id);
+        if (isMounted) {
+          setBusinessSetupStatus("complete");
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        const missingBusinessProfile =
+          message.includes("no business profile") ||
+          message.includes("no business") ||
+          message.includes("not found") ||
+          message.includes("404");
+
+        if (isMounted) {
+          setBusinessSetupStatus(missingBusinessProfile ? "required" : "unknown");
+        }
+      }
+    };
+
+    void loadBusinessSetupStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
@@ -52,9 +99,17 @@ export const Navbar = () => {
                 <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
                   Dashboard
                 </Link>
-                {user?.role === "BUSINESS_OWNER" && (
-                  <Link to="/promotions/new" className="text-foreground hover:text-primary transition-colors">
-                    Create Promotion
+                {user?.role === "CONSUMER" && (
+                  <Link
+                    to="/create-business-owner-account"
+                    className="text-foreground hover:text-primary transition-colors"
+                  >
+                    Create Business Owner Account
+                  </Link>
+                )}
+                {businessOwnerAction && (
+                  <Link to={businessOwnerAction.to} className="text-foreground hover:text-primary transition-colors">
+                    {businessOwnerAction.label}
                   </Link>
                 )}
                 {user?.role === "ADMIN" && (
@@ -91,9 +146,14 @@ export const Navbar = () => {
                     <DropdownMenuItem asChild>
                       <Link to="/dashboard">Dashboard</Link>
                     </DropdownMenuItem>
-                    {user?.role === "BUSINESS_OWNER" && (
+                    {user?.role === "CONSUMER" && (
                       <DropdownMenuItem asChild>
-                        <Link to="/promotions/new">Create promotion</Link>
+                        <Link to="/create-business-owner-account">Create Business Owner Account</Link>
+                      </DropdownMenuItem>
+                    )}
+                    {businessOwnerAction && (
+                      <DropdownMenuItem asChild>
+                        <Link to={businessOwnerAction.to}>{businessOwnerAction.label}</Link>
                       </DropdownMenuItem>
                     )}
                     {user?.role !== "BUSINESS_OWNER" && (
@@ -195,13 +255,22 @@ export const Navbar = () => {
                   >
                     Dashboard
                   </Link>
-                  {user?.role === "BUSINESS_OWNER" && (
+                  {user?.role === "CONSUMER" && (
                     <Link
-                      to="/promotions/new"
+                      to="/create-business-owner-account"
                       className="text-foreground hover:text-primary transition-colors py-2"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      Create Promotion
+                      Create Business Owner Account
+                    </Link>
+                  )}
+                  {businessOwnerAction && (
+                    <Link
+                      to={businessOwnerAction.to}
+                      className="text-foreground hover:text-primary transition-colors py-2"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {businessOwnerAction.label}
                     </Link>
                   )}
                   {user?.role === "ADMIN" && (
@@ -227,10 +296,20 @@ export const Navbar = () => {
                 </Button>
                 {isAuthenticated ? (
                   <>
-                    {user?.role === "BUSINESS_OWNER" && (
+                    {user?.role === "CONSUMER" && (
                       <Button variant="outline" asChild>
-                        <Link to="/promotions/new" onClick={() => setMobileMenuOpen(false)}>
-                          Create promotion
+                        <Link
+                          to="/create-business-owner-account"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          Create Business Owner Account
+                        </Link>
+                      </Button>
+                    )}
+                    {businessOwnerAction && (
+                      <Button variant="outline" asChild>
+                        <Link to={businessOwnerAction.to} onClick={() => setMobileMenuOpen(false)}>
+                          {businessOwnerAction.label}
                         </Link>
                       </Button>
                     )}

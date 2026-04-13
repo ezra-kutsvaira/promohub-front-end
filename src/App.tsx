@@ -18,6 +18,7 @@ import AccountSettings from "./pages/AccountSettings";
 import AdminBusinessVerification from "./pages/OperationsConsole";
 import CreatePromotion from "./pages/CreatePromotion";
 import EditPromotion from "./pages/EditPromotion";
+import CreateBusinessOwnerAccount from "./pages/CreateBusinessOwnerAccount";
 import { RequireAuth, RequireRole } from "./components/RouteGuard";
 
 const queryClient = new QueryClient();
@@ -61,6 +62,16 @@ const App = () => {
               element={
                 <RequireAuth>
                   <AccountSettings />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/create-business-owner-account"
+              element={
+                <RequireAuth>
+                  <RequireRole allowed={["CONSUMER", "BUSINESS_OWNER"]}>
+                    <CreateBusinessOwnerAccount />
+                  </RequireRole>
                 </RequireAuth>
               }
             />

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import { BadgeCheck, FileCheck, Shield, TrendingUp } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api, type AuthPayload, type BusinessDocumentType, type Category } from "@/lib/api";
 import { clearStagedSession, stageSession } from "@/lib/session";
@@ -130,7 +130,7 @@ const logBusinessRegistrationDiagnostic = (
 };
 
 const Register = () => {
-  const { establishSession, signOut } = useAuth();
+  const { establishSession, signOut, user } = useAuth();
   const navigate = useNavigate();
   const [role, setRole] = useState<RegisterRole>("BUSINESS_OWNER");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -139,6 +139,15 @@ const Register = () => {
 
   const allowedMimeTypes = ["application/pdf", "image/png", "image/jpeg"];
   const maxFileSizeBytes = 10 * 1024 * 1024;
+
+  if (user) {
+    return (
+      <Navigate
+        to={user.role === "CONSUMER" ? "/create-business-owner-account" : "/dashboard"}
+        replace
+      />
+    );
+  }
 
   const validateDocumentFile = (file: File, label: string) => {
     if (!allowedMimeTypes.includes(file.type)) {
@@ -269,17 +278,17 @@ const Register = () => {
 
         const businessPayload = {
           ownerId: authResponse.userId,
-          businessName: String(formData.get("business-name") ?? ""),
-          description: String(formData.get("description") ?? ""),
-          contactEmail: String(formData.get("contact-email") ?? email),
-          phoneNumber: String(formData.get("phone") ?? ""),
-          category: String(formData.get("categoryName") ?? ""),
+          businessName: String(formData.get("business-name") ?? "").trim(),
+          description: String(formData.get("description") ?? "").trim(),
+          contactEmail: String(formData.get("contact-email") ?? email).trim(),
+          phoneNumber: String(formData.get("phone") ?? "").trim(),
+          category: String(formData.get("categoryName") ?? "").trim(),
           categoryCode: String(formData.get("categoryCode") ?? "") || undefined,
-          websiteUrl: String(formData.get("website") ?? ""),
-          address: String(formData.get("address") ?? ""),
-          logoUrl: String(formData.get("logo-url") ?? ""),
-          city: String(formData.get("city") ?? ""),
-          country: String(formData.get("country") ?? ""),
+          websiteUrl: String(formData.get("website") ?? "").trim(),
+          address: String(formData.get("address") ?? "").trim(),
+          logoUrl: String(formData.get("logo-url") ?? "").trim(),
+          city: String(formData.get("city") ?? "").trim(),
+          country: String(formData.get("country") ?? "").trim(),
           taxClearanceDocumentUrl,
           certifiedRegistrantIdDocumentUrl,
           businessRegistrationCertificateUrl,

@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDiscount } from "@/lib/format";
-import { ArrowUpRight, BookmarkCheck, CalendarCheck, MapPin, Megaphone, Sparkles, Users } from "lucide-react";
+import { ArrowUpRight, BookmarkCheck, CalendarCheck, MapPin, Megaphone, Sparkles, Store, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { useEffect, useMemo, useState } from "react";
@@ -15,6 +15,7 @@ import {
   formatNotificationTimestamp,
   getNotificationEventLabel,
   getNotificationTargetPath,
+  isExternalNotificationTarget,
 } from "@/lib/notification-utils";
 import { useNotifications } from "@/lib/notifications";
 import {
@@ -41,6 +42,14 @@ const PENDING_BUSINESS_STATUSES = new Set([
 
 
 const FINAL_BUSINESS_STATUSES = new Set(["APPROVED", "VERIFIED", "REJECTED", "DECLINED"]);
+
+const getStartOfToday = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
+
+const parseDateOnly = (value: string) => new Date(`${value}T00:00:00`);
 
 const shouldCountBusinessInVerificationQueue = (business: Business, review: BusinessVerificationReview | null) => {
   const normalizedStatus = String(review?.status ?? business.businessVerificationStatus ?? "").toUpperCase();
@@ -256,6 +265,7 @@ const Dashboard = () => {
   const [platformAnalytics, setPlatformAnalytics] = useState<PlatformAnalytics | null>(null);
   const [pendingPromotionsCount, setPendingPromotionsCount] = useState(0);
   const [businessPromotions, setBusinessPromotions] = useState<Promotion[]>([]);
+  const [businessSetupRequired, setBusinessSetupRequired] = useState(false);
   const [adminPendingPromotions, setAdminPendingPromotions] = useState<Promotion[]>([]);
   const [adminApprovedPromotions, setAdminApprovedPromotions] = useState<Promotion[]>([]);
   const [adminRejectedPromotions, setAdminRejectedPromotions] = useState<Promotion[]>([]);
@@ -276,8 +286,33 @@ const Dashboard = () => {
     const loadDashboard = async () => {
       try {
         if (isBusiness) {
-          const business = await api.getCurrentUserBusiness(user.id);
+          let business: Business | null = null;
+
+          try {
+            business = await api.getCurrentUserBusiness(user.id);
+          } catch (error) {
+            if (!isMounted) return;
+
+            const message = error instanceof Error ? error.message.toLowerCase() : "";
+            const missingBusinessProfile =
+              message.includes("no business profile") ||
+              message.includes("no business") ||
+              message.includes("not found") ||
+              message.includes("404");
+
+            if (missingBusinessProfile) {
+              setBusinessSetupRequired(true);
+              setBusinessPromotions([]);
+              setPendingPromotionsCount(0);
+              return;
+            }
+
+            throw error;
+          }
+
           if (!isMounted) return;
+          if (!business) return;
+          setBusinessSetupRequired(false);
           const allBusinessPromotions = await api.getCurrentUserBusinessPromotions(business.id, user.id);
           if (!isMounted) return;
 
@@ -288,6 +323,7 @@ const Dashboard = () => {
           );
         
         } else if (!isAdmin) {
+          setBusinessSetupRequired(false);
           const saved = await api.getSavedPromotions();
           if (!isMounted) return;
           setSavedPromotions(saved);
@@ -344,11 +380,11 @@ const Dashboard = () => {
   }, [isAdmin, isBusiness, user.id]);
 
   const expiringSoonCount = useMemo(() => {
-    const today = new Date();
-    const cutoff = new Date();
+    const today = getStartOfToday();
+    const cutoff = new Date(today);
     cutoff.setDate(today.getDate() + 7);
     return savedPromotionDetails.filter((promotion) => {
-      const endDate = new Date(`${promotion.endDate}T00:00:00`);
+      const endDate = parseDateOnly(promotion.endDate);
       return endDate >= today && endDate <= cutoff;
     }).length;
   }, [savedPromotionDetails]);
@@ -510,6 +546,31 @@ const Dashboard = () => {
         </section>
 
         {isBusiness && (
+          businessSetupRequired ? (
+            <section>
+              <Card className="border-border">
+                <CardHeader>
+                  <CardTitle>Complete your business owner account</CardTitle>
+                  <CardDescription>
+                    Your account has business-owner access, but you still need to submit the
+                    business details and documents required for admin approval.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-start gap-4">
+                    <Store className="mt-0.5 h-5 w-5 text-primary" />
+                    <p className="max-w-2xl text-sm text-muted-foreground">
+                      Finish the onboarding form so admins can review your business owner account and
+                      unlock the full promotion workflow.
+                    </p>
+                  </div>
+                  <Button asChild>
+                    <Link to="/create-business-owner-account">Complete setup</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </section>
+          ) : (
           <section>
             <Card className="border-border">
               <CardHeader>
@@ -600,6 +661,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           </section>
+          )
         )}
 
         <section className="grid gap-6 lg:grid-cols-[2fr,1fr]">
@@ -629,11 +691,25 @@ const Dashboard = () => {
                     Set notifications so you never miss a closing promotion.
                   </p>
                 </div>
-                <Button variant="outline" className="ml-auto" onClick={() => toast.info("Use Account Settings to configure notification delivery preferences.")}>
-                  Set reminder
+                <Button variant="outline" className="ml-auto" asChild>
+                  <Link to="/account-settings?section=notifications">Manage reminders</Link>
                 </Button>
               </div>
-              {isBusiness && (
+              {!isBusiness && !isAdmin && (
+                <div className="flex items-start gap-4 rounded-lg border border-border p-4">
+                  <Store className="h-5 w-5 text-primary" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-foreground">Create Business Owner Account</p>
+                    <p className="text-sm text-muted-foreground">
+                      Use this login to submit your business details and required verification documents.
+                    </p>
+                  </div>
+                  <Button variant="outline" className="ml-auto" asChild>
+                    <Link to="/create-business-owner-account">Start application</Link>
+                  </Button>
+                </div>
+              )}
+              {isBusiness && !businessSetupRequired && (
                 <div className="flex items-start gap-4 rounded-lg border border-border p-4">
                   <Megaphone className="h-5 w-5 text-primary" />
                   <div className="space-y-1">
@@ -663,6 +739,10 @@ const Dashboard = () => {
                   <div className="flex items-start gap-3">
                     <Users className="mt-0.5 h-4 w-4 text-primary" />
                     <span>Get early access to loyalty rewards and VIP events.</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Store className="mt-0.5 h-4 w-4 text-primary" />
+                    <span>Create a business owner account when you are ready to submit a business for review.</span>
                   </div>
                 </>
               )}
@@ -699,18 +779,19 @@ const Dashboard = () => {
             <CardHeader>
               <CardTitle>Recent notifications</CardTitle>
               <CardDescription>
-                Moderation decisions, review updates, and other account activity.
+                Approval queues, saved-promotion reminders, moderation decisions, and account activity.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {recentNotifications.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  No notifications yet. New approval and review events will appear here.
+                  No notifications yet. New reminders, approvals, and review events will appear here.
                 </p>
               )}
 
               {recentNotifications.map((notification) => {
                 const targetPath = getNotificationTargetPath(notification);
+                const isExternalTarget = isExternalNotificationTarget(targetPath);
 
                 return (
                   <div key={notification.id} className="rounded-lg border border-border p-4">
@@ -725,17 +806,33 @@ const Dashboard = () => {
                     <p className="mt-3 font-semibold text-foreground">{notification.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">{notification.message}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Button size="sm" variant={notification.read ? "outline" : "default"} asChild>
-                        <Link
-                          to={targetPath}
-                          onClick={() => {
-                            void handleNotificationOpen(notification.id, notification.read);
-                          }}
-                        >
-                          Open update
-                          <ArrowUpRight className="ml-2 h-4 w-4" />
-                        </Link>
-                      </Button>
+                      {isExternalTarget ? (
+                        <Button size="sm" variant={notification.read ? "outline" : "default"} asChild>
+                          <a
+                            href={targetPath}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => {
+                              void handleNotificationOpen(notification.id, notification.read);
+                            }}
+                          >
+                            Open update
+                            <ArrowUpRight className="ml-2 h-4 w-4" />
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant={notification.read ? "outline" : "default"} asChild>
+                          <Link
+                            to={targetPath}
+                            onClick={() => {
+                              void handleNotificationOpen(notification.id, notification.read);
+                            }}
+                          >
+                            Open update
+                            <ArrowUpRight className="ml-2 h-4 w-4" />
+                          </Link>
+                        </Button>
+                      )}
                       {!notification.read && <Badge variant="outline">Unread</Badge>}
                     </div>
                   </div>

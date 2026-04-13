@@ -574,12 +574,21 @@ export type SavedPromotion = {
 export type NotificationChannel = "IN_APP" | "EMAIL" | "SMS" | "WHATSAPP" | string;
 
 export type NotificationEventType =
+  | "BUSINESS_VERIFICATION_APPROVED"
+  | "BUSINESS_VERIFICATION_REJECTED"
   | "PROMOTION_APPROVED"
   | "PROMOTION_REJECTED"
   | "PROMOTION_FLAGGED_AFTER_REPORTS"
   | "PROMOTION_REPORT_UNDER_REVIEW"
   | "PROMOTION_KEPT_FLAGGED_AFTER_REPORT_REVIEW"
   | "PROMOTION_REJECTED_AFTER_REPORT_REVIEW"
+  | "ADMIN_PROMOTION_SUBMITTED"
+  | "ADMIN_BUSINESS_VERIFICATION_SUBMITTED"
+  | "ADMIN_REPORT_CREATED"
+  | "ADMIN_REPORT_THRESHOLD_REACHED"
+  | "SAVED_PROMOTION_EXPIRING_IN_3_DAYS"
+  | "SAVED_PROMOTION_EXPIRING_TOMORROW"
+  | "SAVED_PROMOTION_ENDS_TODAY"
   | "ROADSHOW_EVENT_APPROVED"
   | string;
 
@@ -727,6 +736,14 @@ const toReportArray = (payload: PageResponse<ReportItem> | ReportItem[] | null |
   if (!payload) return [];
   if (Array.isArray(payload)) return payload.map((item) => normalizeReportItem(item));
   return (payload.content ?? []).map((item) => normalizeReportItem(item));
+};
+
+const toSavedPromotionArray = (
+  payload: PageResponse<SavedPromotion> | SavedPromotion[] | null | undefined,
+): SavedPromotion[] => {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  return payload.content ?? [];
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -1479,13 +1496,23 @@ export const api = {
 
     throw new Error("Registration failed.");
   },
+  upgradeCurrentUserToBusinessOwner: () =>
+    apiRequestWithAlternatives<AuthPayload>(
+      [
+        "/api/auth/upgrade/business-owner",
+        "/api/users/me/upgrade/business-owner",
+        "/api/users/self/upgrade/business-owner",
+      ],
+      { method: "POST" },
+      [401, 403, 404, 405],
+    ),
   logout: (refreshToken: string) => apiRequest<void>("/api/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
   requestPasswordReset: (email: string) => apiRequest<void>("/api/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email }), skipAuth: true }),
   confirmPasswordReset: (payload: { token: string; newPassword: string; confirmNewPassword: string }) => apiRequest<void>("/api/auth/password-reset/confirm", { method: "POST", body: JSON.stringify(payload), skipAuth: true }),
 
   getPromotions: async (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    const payload = await apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`);
+    const payload = await apiRequest<PageResponse<Promotion>>(`${PUBLIC_PROMOTIONS_BASE_PATH}${query}`, { skipAuth: true });
     return normalizePromotionCollection(payload) as PageResponse<Promotion>;
   },
 
@@ -1774,7 +1801,12 @@ export const api = {
   updateEvent: (id: string | number, payload: EventUpsertRequest) => apiRequest<Event>(`/api/events/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   deleteEvent: (id: string | number) => apiRequest<void>(`/api/events/${id}`, { method: "DELETE" }),
 
-  getSavedPromotions: () => apiRequest<SavedPromotion[]>("/api/users/saved-promotions"),
+  getSavedPromotions: async () => {
+    const payload = await apiRequest<PageResponse<SavedPromotion> | SavedPromotion[]>(
+      "/api/users/saved-promotions",
+    );
+    return toSavedPromotionArray(payload);
+  },
   savePromotion: (promotionId: string | number) => apiRequest(`/api/users/saved-promotions/${promotionId}`, { method: "POST" }),
   removeSavedPromotion: (promotionId: string | number) => apiRequest(`/api/users/saved-promotions/${promotionId}`, { method: "DELETE" }),
   getNotifications: () => apiRequest<NotificationItem[]>("/api/users/notifications"),
@@ -1831,8 +1863,11 @@ export const api = {
       }
 
       if (error instanceof ApiError && error.status === 400) {
+        const detail = error.message?.trim();
         throw new Error(
-          "Business profile creation was rejected by the backend. Confirm POST /api/businesses accepts ownerId, businessName, description, contactEmail, phoneNumber, category/categoryCode, address, city, country, logoUrl, and the uploaded document URL fields."
+          detail
+            ? `Business profile creation was rejected by the backend: ${detail}`
+            : "Business profile creation was rejected by the backend."
         );
       }
 
@@ -1869,7 +1904,7 @@ export const api = {
           const shouldRetry =
             isNotFoundError(error) ||
             isMethodNotSupportedError(error) ||
-            (error instanceof ApiError && [400, 404, 405, 415].includes(error.status));
+            (error instanceof ApiError && [400, 401, 403, 404, 405, 415].includes(error.status));
 
           if (!shouldRetry) {
             throw error;
@@ -1889,7 +1924,7 @@ export const api = {
         const shouldRetry =
           isNotFoundError(error) ||
           isMethodNotSupportedError(error) ||
-          (error instanceof ApiError && [400, 404, 405, 415].includes(error.status));
+          (error instanceof ApiError && [400, 401, 403, 404, 405, 415].includes(error.status));
 
         if (!shouldRetry) {
           throw error;
@@ -1994,7 +2029,7 @@ export const api = {
           paths,
           ["POST", "PUT", "PATCH"],
           JSON.stringify(body),
-          [400, 404, 405]
+          [400, 401, 403, 404, 405]
         );
       } catch (error) {
         lastError = error;

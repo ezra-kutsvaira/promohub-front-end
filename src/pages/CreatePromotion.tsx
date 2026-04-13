@@ -77,7 +77,8 @@ const CreatePromotion = () => {
       }
 
       if (!business) {
-        toast.error("No business profile found for your account. Please complete business registration first.");
+        toast.error("No business profile found for your account. Please complete your business owner setup first.");
+        navigate("/create-business-owner-account");
         return;
       }
 

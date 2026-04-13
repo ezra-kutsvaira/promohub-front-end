@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { api, type Event, type Promotion } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { landingEvents, landingPromotions } from "@/data/landing";
 import { formatDate, formatDiscount } from "@/lib/format";
 import { toast } from "@/components/ui/sonner";
@@ -14,11 +15,19 @@ import { isApprovedPromotion } from "@/lib/promotionStatus";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [featuredPromotions, setFeaturedPromotions] = useState<Promotion[]>(landingPromotions);
   const [roadshows, setRoadshows] = useState<Event[]>(landingEvents);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [selectedLocation, setSelectedLocation] = useState("ALL");
+
+  const businessCtaPath =
+    user?.role === "CONSUMER"
+      ? "/create-business-owner-account"
+      : user?.role === "BUSINESS_OWNER"
+        ? "/dashboard"
+        : "/register";
 
   const categories = useMemo(() => {
     const uniqueCategories = Array.from(
@@ -161,7 +170,9 @@ const Index = () => {
                 <Link to="/browse">Browse Promotions</Link>
               </Button>
               <Button size="lg" variant="outline" asChild className="text-lg px-8">
-                <Link to="/register">Business? Get Verified</Link>
+                <Link to={businessCtaPath}>
+                  {user?.role === "CONSUMER" ? "Create Business Owner Account" : "Business? Get Verified"}
+                </Link>
               </Button>
             </div>
           </motion.div>
@@ -351,7 +362,9 @@ const Index = () => {
               Join hundreds of verified businesses reaching customers across Zimbabwe
             </p>
             <Button size="lg" variant="secondary" asChild>
-              <Link to="/register">Get Your Business Verified</Link>
+              <Link to={businessCtaPath}>
+                {user?.role === "CONSUMER" ? "Create Business Owner Account" : "Get Your Business Verified"}
+              </Link>
             </Button>
           </motion.div>
         </div>
@@ -376,7 +389,7 @@ const Index = () => {
                 <li><Link to="/browse" className="hover:text-foreground">Browse Promotions</Link></li>
                 <li><Link to="/roadshows" className="hover:text-foreground">Roadshows & Events</Link></li>
                 <li><Link to="/how-it-works" className="hover:text-foreground">About</Link></li>
-                <li><Link to="/register" className="hover:text-foreground">For Businesses</Link></li>
+                <li><Link to={businessCtaPath} className="hover:text-foreground">For Businesses</Link></li>
               </ul>
             </div>
             <div>

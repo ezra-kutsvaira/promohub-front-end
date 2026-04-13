@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowUpRight,
   Bell,
+  CalendarClock,
   CheckCheck,
   Megaphone,
   RefreshCw,
@@ -34,6 +35,10 @@ import { cn } from "@/lib/utils";
 
 const getNotificationIcon = (eventType?: string | null) => {
   switch (eventType) {
+    case "BUSINESS_VERIFICATION_APPROVED":
+      return ShieldCheck;
+    case "BUSINESS_VERIFICATION_REJECTED":
+      return ShieldAlert;
     case "PROMOTION_APPROVED":
       return ShieldCheck;
     case "PROMOTION_REJECTED":
@@ -43,6 +48,15 @@ const getNotificationIcon = (eventType?: string | null) => {
     case "PROMOTION_REPORT_UNDER_REVIEW":
     case "PROMOTION_KEPT_FLAGGED_AFTER_REPORT_REVIEW":
       return Bell;
+    case "ADMIN_PROMOTION_SUBMITTED":
+    case "ADMIN_BUSINESS_VERIFICATION_SUBMITTED":
+    case "ADMIN_REPORT_CREATED":
+    case "ADMIN_REPORT_THRESHOLD_REACHED":
+      return ShieldAlert;
+    case "SAVED_PROMOTION_EXPIRING_IN_3_DAYS":
+    case "SAVED_PROMOTION_EXPIRING_TOMORROW":
+    case "SAVED_PROMOTION_ENDS_TODAY":
+      return CalendarClock;
     case "ROADSHOW_EVENT_APPROVED":
       return Megaphone;
     default:
@@ -238,7 +252,7 @@ export const NotificationCenter = () => {
               <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center">
                 <p className="font-medium text-foreground">No notifications yet</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Promotion approvals, rejections, and review updates will appear here.
+                  Approval queues, saved-promotion reminders, and moderation updates will appear here.
                 </p>
               </div>
             )}
