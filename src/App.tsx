@@ -19,6 +19,8 @@ import AdminBusinessVerification from "./pages/OperationsConsole";
 import CreatePromotion from "./pages/CreatePromotion";
 import EditPromotion from "./pages/EditPromotion";
 import CreateBusinessOwnerAccount from "./pages/CreateBusinessOwnerAccount";
+import BusinessAnalytics from "./pages/BusinessAnalytics";
+import AdminModerationAnalytics from "./pages/AdminModerationAnalytics";
 import { RequireAuth, RequireRole } from "./components/RouteGuard";
 
 const queryClient = new QueryClient();
@@ -96,6 +98,16 @@ const App = () => {
                 </RequireAuth>
               }
             />
+            <Route
+              path="/business/analytics"
+              element={
+                <RequireAuth>
+                  <RequireRole allowed={["BUSINESS_OWNER"]}>
+                    <BusinessAnalytics />
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
           
             <Route
               path="/admin/business-verification"
@@ -106,7 +118,17 @@ const App = () => {
                   </RequireRole>
                 </RequireAuth>
               }
-            /> 
+            />
+            <Route
+              path="/admin/analytics"
+              element={
+                <RequireAuth>
+                  <RequireRole allowed={["ADMIN"]}>
+                    <AdminModerationAnalytics />
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
 
             <Route
               path="/operations-console"

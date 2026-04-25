@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AVIF Preview</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f7fb;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      padding: 24px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: 0 12px 28px rgba(41, 72, 105, 0.14);
+      width: 520px;
+    }
+
+    img {
+      width: 100%;
+      height: 320px;
+      object-fit: contain;
+      display: block;
+      background: #eef3f8;
+      border-radius: 14px;
+    }
+
+    p {
+      margin: 12px 0 0;
+      font-size: 20px;
+      font-weight: 700;
+      text-align: center;
+      color: #23415d;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <img src="./database-server.avif" alt="Database Server" />
+      <p>Database Server AVIF</p>
+    </div>
+    <div class="card">
+      <img src="./laptop.avif" alt="Laptop" />
+      <p>Laptop AVIF</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PromoHub Physical Design</title>
+  <style>
+    :root {
+      --page-width: 1700px;
+      --panel-width: 1580px;
+      --panel-height: 980px;
+      --ink: #16283a;
+      --muted: #4d6277;
+      --line: #294966;
+      --panel: #f4f6f8;
+      --card: #ffffff;
+      --card-line: #dde5ee;
+      --shadow: 0 18px 36px rgba(35, 65, 93, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #ffffff;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+    }
+
+    .figure {
+      width: var(--page-width);
+      margin: 0 auto;
+      padding: 56px 60px 72px;
+    }
+
+    .caption {
+      margin: 0 0 22px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 24px;
+      font-weight: 500;
+      color: #1f2f40;
+    }
+
+    .panel {
+      position: relative;
+      width: var(--panel-width);
+      height: var(--panel-height);
+      background: var(--panel);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: inset 0 0 0 1px #e6ecf3;
+    }
+
+    .card {
+      position: absolute;
+      background: var(--card);
+      border: 1px solid var(--card-line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .card-inner {
+      padding: 18px 22px 20px;
+      height: 100%;
+    }
+
+    .card h2,
+    .info-card h2 {
+      margin: 0;
+      font-size: 27px;
+      line-height: 1.05;
+      letter-spacing: 0.04em;
+      font-weight: 800;
+      text-align: center;
+      color: #10273c;
+    }
+
+    .subtext {
+      margin: 8px 0 0;
+      font-size: 19px;
+      line-height: 1.35;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .image-frame {
+      background: linear-gradient(180deg, #f8fbff 0%, #eef3f8 100%);
+      border-radius: 18px;
+      border: 1px solid #e3ebf4;
+      overflow: hidden;
+    }
+
+    .image-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .client-images {
+      display: grid;
+      grid-template-columns: 1.55fr 1fr;
+      gap: 12px;
+      height: 150px;
+      margin-bottom: 18px;
+    }
+
+    .client-images .image-frame:first-child img {
+      object-fit: cover;
+      object-position: center;
+    }
+
+    .server-image {
+      height: 125px;
+      margin: 14px 0 16px;
+      padding: 10px;
+    }
+
+    .admin-image {
+      height: 140px;
+      margin: 14px 0 16px;
+      padding: 10px;
+    }
+
+    .internet-card {
+      position: absolute;
+      left: 680px;
+      top: 392px;
+      width: 270px;
+      height: 270px;
+      border-radius: 50%;
+      overflow: hidden;
+      box-shadow: 0 18px 38px rgba(24, 55, 84, 0.2);
+      border: 5px solid rgba(255, 255, 255, 0.86);
+      z-index: 3;
+    }
+
+    .internet-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .internet-label {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      background: linear-gradient(180deg, rgba(5, 15, 28, 0.12), rgba(6, 20, 38, 0.28));
+      text-align: center;
+    }
+
+    .internet-label strong {
+      font-size: 54px;
+      line-height: 1;
+      letter-spacing: 0.05em;
+      font-weight: 900;
+      color: #ffffff;
+      text-shadow: 0 3px 14px rgba(0, 0, 0, 0.34);
+    }
+
+    .internet-label span {
+      margin-top: 10px;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #dff3ff;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .db-cluster {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      height: 108px;
+      margin: 14px 0 12px;
+    }
+
+    .db-cluster .image-frame {
+      padding: 10px;
+    }
+
+    .db-note {
+      margin: 8px 0 0;
+      font-size: 17px;
+      line-height: 1.4;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .info-card {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid #dbe4ed;
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 22px 24px 20px;
+      z-index: 2;
+    }
+
+    .info-card h2 {
+      font-size: 23px;
+      margin-bottom: 12px;
+    }
+
+    .info-card ul {
+      margin: 0;
+      padding-left: 22px;
+      color: #31475c;
+      font-size: 19px;
+      line-height: 1.45;
+    }
+
+    .connector-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="figure">
+    <p class="caption">Figure 4.5 Physical Design of PromoHub</p>
+
+    <div class="panel">
+      <svg class="connector-layer" viewBox="0 0 1580 980" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto">
+            <path d="M1 1L11 7L1 13" fill="none" stroke="#294966" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+          </marker>
+        </defs>
+
+        <path d="M430 235H560V528H676" fill="none" stroke="#294966" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" />
+        <path d="M790 248V392" fill="none" stroke="#294966" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+        <path d="M1190 280H1030V430" fill="none" stroke="#294966" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" />
+        <path d="M815 662V720" fill="none" stroke="#294966" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+        <path d="M1000 530H1170" fill="none" stroke="#294966" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+        <path d="M1000 610H1135V735H1170" fill="none" stroke="#294966" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" />
+      </svg>
+
+      <div class="card" style="left: 70px; top: 92px; width: 360px; height: 285px; z-index: 2;">
+        <div class="card-inner">
+          <div class="client-images">
+            <div class="image-frame">
+              <img src="./physical-assets/laptop.avif" alt="Laptop client device" />
+            </div>
+            <div class="image-frame">
+              <img src="./physical-assets/browser.jpg" alt="Web browser" />
+            </div>
+          </div>
+          <h2>CLIENT DEVICES</h2>
+          <p class="subtext">Browsers on desktops, laptops, tablets, and mobile devices</p>
+        </div>
+      </div>
+
+      <div class="card" style="left: 640px; top: 62px; width: 300px; height: 255px; z-index: 2;">
+        <div class="card-inner">
+          <h2>APPLICATION SERVERS</h2>
+          <div class="image-frame server-image">
+            <img src="./physical-assets/database-server.avif" alt="Application servers" />
+          </div>
+          <p class="subtext">Web/API server cluster hosting PromoHub backend services</p>
+        </div>
+      </div>
+
+      <div class="card" style="left: 1125px; top: 72px; width: 370px; height: 265px; z-index: 2;">
+        <div class="card-inner">
+          <div class="image-frame admin-image">
+            <img src="./physical-assets/admin.webp" alt="Administrator workstation" />
+          </div>
+          <h2>ADMIN WORKSTATION</h2>
+          <p class="subtext">Secure dashboard access for administrators via HTTPS</p>
+        </div>
+      </div>
+
+      <div class="internet-card">
+        <img src="./physical-assets/internet.webp" alt="Internet" />
+        <div class="internet-label">
+          <strong>INTERNET</strong>
+          <span>HTTPS</span>
+        </div>
+      </div>
+
+      <div class="card" style="left: 650px; top: 720px; width: 360px; height: 220px; z-index: 2;">
+        <div class="card-inner">
+          <h2>DATABASE SERVERS</h2>
+          <div class="db-cluster">
+            <div class="image-frame">
+              <img src="./physical-assets/database-server.avif" alt="Database server primary" />
+            </div>
+            <div class="image-frame">
+              <img src="./physical-assets/database-server.avif" alt="Database server replica" />
+            </div>
+          </div>
+          <p class="subtext">PostgreSQL master and replica setup</p>
+          <p class="db-note">High availability and failover support</p>
+        </div>
+      </div>
+
+      <div class="info-card" style="left: 1170px; top: 430px; width: 330px; height: 175px;">
+        <h2>NETWORK INFRASTRUCTURE</h2>
+        <ul>
+          <li>Secure HTTPS communication</li>
+          <li>Firewall rules and access controls</li>
+          <li>Regulated traffic between app and database layers</li>
+        </ul>
+      </div>
+
+      <div class="info-card" style="left: 1170px; top: 665px; width: 330px; height: 220px;">
+        <h2>SECURITY INFRASTRUCTURE</h2>
+        <ul>
+          <li>TLS certificates for encrypted communication</li>
+          <li>Authentication and authorization by user role</li>
+          <li>Protected backend services and database access</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

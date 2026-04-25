@@ -700,11 +700,87 @@ export type PlatformAnalytics = {
 
 export type BusinessAnalytics = {
   businessId: number;
-  promotions: number;
+  businessName: string;
+  totalPromotions: number;
+  pendingPromotions: number;
+  approvedPromotions: number;
+  rejectedPromotions: number;
+  activePromotions: number;
+  flaggedPromotions: number;
+  totalReports: number;
+  openReports: number;
+  resolvedReports: number;
+  promotionViews: number;
+  promotionClicks: number;
+  promotionRedemptions: number;
+  clickThroughRate: number;
+  redemptionRate: number;
+};
+
+export type PromotionPerformance = {
+  promotionId: number;
+  promotionTitle: string;
+  promotionStatus: string;
+  flagged: boolean;
   views: number;
   clicks: number;
   redemptions: number;
-  engagementRate: number;
+  clickThroughRate: number;
+  conversionRate: number;
+};
+
+export type PromotionFunnel = {
+  promotionId: number;
+  views: number;
+  clicks: number;
+  redemptions: number;
+  viewToClickRate: number;
+  clickToRedeemRate: number;
+  viewToRedeemRate: number;
+  clickDropOffRate: number;
+  redeemDropOffRate: number;
+};
+
+export type DailyTrend = {
+  date: string;
+  views: number;
+  clicks: number;
+  redemptions: number;
+  clickThroughRate: number;
+  conversionRate: number;
+};
+
+export type CategoryPerformance = {
+  categoryId: number;
+  categoryName: string;
+  promotionCount: number;
+  views: number;
+  clicks: number;
+  redemptions: number;
+  clickThroughRate: number;
+  conversionRate: number;
+};
+
+export type AdminModerationSummary = {
+  startDate: string;
+  endDate: string;
+  totalModerationEvents: number;
+  reportsCreated: number;
+  reviewsStarted: number;
+  reportsClosed: number;
+  reportsDismissed: number;
+  promotionsFlagged: number;
+  promotionsUnflagged: number;
+  promotionsApproved: number;
+  promotionsRejected: number;
+  promotionsResubmitted: number;
+  currentOpenReports: number;
+  currentReviewingReports: number;
+  currentClosedReports: number;
+  currentFlaggedPromotions: number;
+  currentRejectedPromotions: number;
+  closureRate: number;
+  rejectionRateAfterReport: number;
 };
 
 export type SecurityAuditLog = {
@@ -2389,6 +2465,22 @@ export const api = {
 
   getPlatformAnalytics: () => apiRequest<PlatformAnalytics>("/api/analytics/platform"),
   getBusinessAnalytics: (businessId: number | string) => apiRequest<BusinessAnalytics>(`/api/analytics/business/${businessId}`),
+  getPromotionPerformance: (promotionId: number | string) =>
+    apiRequest<PromotionPerformance>(`/api/analytics/promotions/${promotionId}/performance`),
+  getPromotionFunnel: (promotionId: number | string) =>
+    apiRequest<PromotionFunnel>(`/api/analytics/promotions/${promotionId}/funnel`),
+  getPromotionDailyTrends: (promotionId: number | string, days?: number) =>
+    apiRequest<DailyTrend[]>(
+      appendQueryParam(`/api/analytics/promotions/${promotionId}/daily-trends`, "days", days?.toString())
+    ),
+  getBusinessCategoryPerformance: (businessId: number | string, days?: number) =>
+    apiRequest<CategoryPerformance[]>(
+      appendQueryParam(`/api/analytics/business/${businessId}/categories/performance`, "days", days?.toString())
+    ),
+  getAdminModerationSummary: (days?: number) =>
+    apiRequest<AdminModerationSummary>(
+      appendQueryParam("/api/analytics/admin/moderation-summary", "days", days?.toString())
+    ),
 
   //getAdminPromotions: () => apiRequest<Promotion[]>("/api/admin/promotions"),
    getAdminPromotions: async () => {

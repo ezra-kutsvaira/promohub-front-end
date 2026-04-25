@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDiscount } from "@/lib/format";
-import { ArrowUpRight, BookmarkCheck, CalendarCheck, MapPin, Megaphone, Sparkles, Store, Users } from "lucide-react";
+import { ArrowUpRight, BarChart3, BookmarkCheck, CalendarCheck, MapPin, Megaphone, Sparkles, Store, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { useEffect, useMemo, useState } from "react";
@@ -719,6 +719,34 @@ const Dashboard = () => {
                     </p>
                   </div>
                   <Button className="ml-auto" asChild><Link to="/promotions/new">Create promo</Link></Button>
+                </div>
+              )}
+              {isBusiness && !businessSetupRequired && (
+                <div className="flex items-start gap-4 rounded-lg border border-border p-4">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-foreground">Open analytics</p>
+                    <p className="text-sm text-muted-foreground">
+                      Compare promotion reach, funnel performance, category trends, and flagged campaigns.
+                    </p>
+                  </div>
+                  <Button variant="outline" className="ml-auto" asChild>
+                    <Link to="/business/analytics">View analytics</Link>
+                  </Button>
+                </div>
+              )}
+              {isAdmin && (
+                <div className="flex items-start gap-4 rounded-lg border border-border p-4">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-foreground">Review moderation analytics</p>
+                    <p className="text-sm text-muted-foreground">
+                      Watch report closure, flagging, and rejection trends before jumping into the console.
+                    </p>
+                  </div>
+                  <Button variant="outline" className="ml-auto" asChild>
+                    <Link to="/admin/analytics">Open analytics</Link>
+                  </Button>
                 </div>
               )}
             </CardContent>

@@ -99,6 +99,16 @@ export const Navbar = () => {
                 <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
                   Dashboard
                 </Link>
+                {user?.role === "BUSINESS_OWNER" && businessSetupStatus === "complete" && (
+                  <Link to="/business/analytics" className="text-foreground hover:text-primary transition-colors">
+                    Analytics
+                  </Link>
+                )}
+                {user?.role === "ADMIN" && (
+                  <Link to="/admin/analytics" className="text-foreground hover:text-primary transition-colors">
+                    Analytics
+                  </Link>
+                )}
                 {user?.role === "CONSUMER" && (
                   <Link
                     to="/create-business-owner-account"
@@ -146,6 +156,16 @@ export const Navbar = () => {
                     <DropdownMenuItem asChild>
                       <Link to="/dashboard">Dashboard</Link>
                     </DropdownMenuItem>
+                    {user?.role === "BUSINESS_OWNER" && businessSetupStatus === "complete" && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/business/analytics">Analytics</Link>
+                      </DropdownMenuItem>
+                    )}
+                    {user?.role === "ADMIN" && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin/analytics">Analytics</Link>
+                      </DropdownMenuItem>
+                    )}
                     {user?.role === "CONSUMER" && (
                       <DropdownMenuItem asChild>
                         <Link to="/create-business-owner-account">Create Business Owner Account</Link>
@@ -255,6 +275,24 @@ export const Navbar = () => {
                   >
                     Dashboard
                   </Link>
+                  {user?.role === "BUSINESS_OWNER" && businessSetupStatus === "complete" && (
+                    <Link
+                      to="/business/analytics"
+                      className="text-foreground hover:text-primary transition-colors py-2"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Analytics
+                    </Link>
+                  )}
+                  {user?.role === "ADMIN" && (
+                    <Link
+                      to="/admin/analytics"
+                      className="text-foreground hover:text-primary transition-colors py-2"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Analytics
+                    </Link>
+                  )}
                   {user?.role === "CONSUMER" && (
                     <Link
                       to="/create-business-owner-account"
@@ -310,6 +348,20 @@ export const Navbar = () => {
                       <Button variant="outline" asChild>
                         <Link to={businessOwnerAction.to} onClick={() => setMobileMenuOpen(false)}>
                           {businessOwnerAction.label}
+                        </Link>
+                      </Button>
+                    )}
+                    {user?.role === "BUSINESS_OWNER" && businessSetupStatus === "complete" && (
+                      <Button variant="outline" asChild>
+                        <Link to="/business/analytics" onClick={() => setMobileMenuOpen(false)}>
+                          Analytics
+                        </Link>
+                      </Button>
+                    )}
+                    {user?.role === "ADMIN" && (
+                      <Button variant="outline" asChild>
+                        <Link to="/admin/analytics" onClick={() => setMobileMenuOpen(false)}>
+                          Analytics
                         </Link>
                       </Button>
                     )}

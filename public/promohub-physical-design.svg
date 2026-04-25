@@ -1,0 +1,218 @@
+<svg width="2000" height="1320" viewBox="0 0 2000 1320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pageBg" x1="0" y1="0" x2="2000" y2="1320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FAFCFF" />
+      <stop offset="1" stop-color="#F3F8FE" />
+    </linearGradient>
+    <linearGradient id="panelBg" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#F2F5F8" />
+      <stop offset="1" stop-color="#E9EEF4" />
+    </linearGradient>
+    <linearGradient id="cardBg" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FFFFFF" />
+      <stop offset="1" stop-color="#F7FAFD" />
+    </linearGradient>
+    <linearGradient id="serverBg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#C7D4E3" />
+      <stop offset="1" stop-color="#9FB2C6" />
+    </linearGradient>
+    <linearGradient id="monitorBg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#2F3D4D" />
+      <stop offset="1" stop-color="#182330" />
+    </linearGradient>
+    <linearGradient id="screenBg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#DDF2FF" />
+      <stop offset="1" stop-color="#C5E5FF" />
+    </linearGradient>
+    <linearGradient id="globeBg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#65B8FF" />
+      <stop offset="1" stop-color="#246FB0" />
+    </linearGradient>
+    <linearGradient id="shieldBg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#D5EBFF" />
+      <stop offset="1" stop-color="#9BC8F2" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#90A9C0" flood-opacity="0.18" />
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="10" refY="7" orient="auto">
+      <path d="M1 1L11 7L1 13" fill="none" stroke="#2A4965" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+    <style>
+      .title { font: 700 34px 'Segoe UI', Arial, sans-serif; fill: #19324A; }
+      .subtitle { font: 500 18px 'Segoe UI', Arial, sans-serif; fill: #53708B; }
+      .heading { font: 800 36px 'Segoe UI', Arial, sans-serif; fill: #152E46; }
+      .label { font: 800 18px 'Segoe UI', Arial, sans-serif; fill: #152E46; letter-spacing: 0.4px; }
+      .sub { font: 500 16px 'Segoe UI', Arial, sans-serif; fill: #37536D; }
+      .tiny { font: 500 15px 'Segoe UI', Arial, sans-serif; fill: #4A6883; }
+      .panel { fill: url(#panelBg); }
+      .card { fill: url(#cardBg); stroke: #AEC6DA; stroke-width: 2; }
+      .outline { stroke: #2A4965; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .arrow { stroke: #2A4965; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrow); }
+      .arrow-both { stroke: #2A4965; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-start: url(#arrow); marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="2000" height="1320" fill="url(#pageBg)" />
+
+  <text x="110" y="92" class="title">PromoHub Physical Design</text>
+  <text x="110" y="126" class="subtitle">Physical deployment view based on client devices, application servers, database servers, network infrastructure, and security controls.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="80" y="170" width="1840" height="1060" rx="18" class="panel" />
+  </g>
+
+  <!-- Application server cluster -->
+  <g>
+    <rect x="760" y="210" width="480" height="170" rx="18" class="card" />
+    <text x="836" y="322" class="heading" style="font-size:30px">APPLICATION SERVERS</text>
+    <text x="906" y="350" class="sub">Web/API server cluster</text>
+    <text x="818" y="374" class="tiny">Containers hosting the PromoHub backend and business logic</text>
+
+    <g transform="translate(810 228)">
+      <rect x="0" y="0" width="92" height="54" rx="8" fill="url(#serverBg)" stroke="#526E88" stroke-width="2" />
+      <rect x="12" y="10" width="68" height="8" rx="4" fill="#EAF4FC" />
+      <rect x="12" y="24" width="52" height="6" rx="3" fill="#DAE8F6" />
+      <circle cx="74" cy="34" r="4" fill="#71D26B" />
+      <circle cx="62" cy="34" r="4" fill="#F3C953" />
+    </g>
+    <g transform="translate(920 216)">
+      <rect x="0" y="0" width="100" height="62" rx="8" fill="url(#serverBg)" stroke="#526E88" stroke-width="2" />
+      <rect x="12" y="12" width="76" height="8" rx="4" fill="#EAF4FC" />
+      <rect x="12" y="26" width="56" height="6" rx="3" fill="#DAE8F6" />
+      <rect x="12" y="38" width="48" height="6" rx="3" fill="#DAE8F6" />
+      <circle cx="82" cy="44" r="4" fill="#71D26B" />
+    </g>
+    <g transform="translate(1040 228)">
+      <rect x="0" y="0" width="92" height="54" rx="8" fill="url(#serverBg)" stroke="#526E88" stroke-width="2" />
+      <rect x="12" y="10" width="68" height="8" rx="4" fill="#EAF4FC" />
+      <rect x="12" y="24" width="52" height="6" rx="3" fill="#DAE8F6" />
+      <circle cx="74" cy="34" r="4" fill="#71D26B" />
+      <circle cx="62" cy="34" r="4" fill="#F3C953" />
+    </g>
+  </g>
+
+  <!-- Client devices -->
+  <g>
+    <rect x="150" y="300" width="430" height="250" rx="18" class="card" />
+    <text x="245" y="495" class="heading" style="font-size:30px">CLIENT DEVICES</text>
+    <text x="215" y="530" class="sub">Browsers on desktops, laptops, tablets, and mobile devices</text>
+    <text x="206" y="556" class="tiny">Used by consumers and business owners</text>
+
+    <g transform="translate(200 332)">
+      <rect x="0" y="0" width="70" height="126" rx="12" fill="url(#monitorBg)" stroke="#101A26" stroke-width="3" />
+      <rect x="8" y="12" width="54" height="92" rx="6" fill="url(#screenBg)" />
+      <circle cx="35" cy="112" r="5" fill="#A7BCD0" />
+    </g>
+    <g transform="translate(280 352)">
+      <rect x="0" y="0" width="140" height="86" rx="10" fill="#27384A" stroke="#16212C" stroke-width="3" />
+      <rect x="8" y="8" width="124" height="70" rx="6" fill="url(#screenBg)" />
+      <path d="M18 92H122L140 120H0L18 92Z" fill="#C6D3E0" stroke="#738CA2" stroke-width="2.4" />
+    </g>
+  </g>
+
+  <!-- Admin workstation -->
+  <g>
+    <rect x="1420" y="300" width="360" height="250" rx="18" class="card" />
+    <text x="1500" y="495" class="heading" style="font-size:30px">ADMIN WORKSTATION</text>
+    <text x="1478" y="530" class="sub">Secure dashboard access over HTTPS connections</text>
+
+    <g transform="translate(1475 334)">
+      <rect x="0" y="0" width="170" height="104" rx="10" fill="url(#monitorBg)" stroke="#16212C" stroke-width="3" />
+      <rect x="10" y="10" width="150" height="82" rx="6" fill="url(#screenBg)" />
+      <path d="M52 120H118" class="outline" />
+      <path d="M84 104V120" class="outline" />
+      <path d="M30 64L58 48L84 58L118 32L142 46" stroke="#6DA7D8" stroke-width="4" fill="none" />
+      <rect x="34" y="64" width="18" height="18" fill="#A8D2F5" opacity="0.55" />
+      <rect x="62" y="52" width="18" height="30" fill="#8EC0EC" opacity="0.6" />
+      <rect x="90" y="60" width="18" height="22" fill="#6DA7D8" opacity="0.65" />
+    </g>
+    <g transform="translate(1660 356)">
+      <rect x="0" y="0" width="54" height="102" rx="12" fill="url(#monitorBg)" stroke="#101A26" stroke-width="3" />
+      <rect x="7" y="12" width="40" height="76" rx="6" fill="url(#screenBg)" />
+      <circle cx="27" cy="92" r="4" fill="#A7BCD0" />
+    </g>
+  </g>
+
+  <!-- Internet / HTTPS -->
+  <g>
+    <circle cx="1000" cy="675" r="96" fill="url(#globeBg)" stroke="#295A88" stroke-width="4" />
+    <path d="M940 646C973 635 1012 633 1058 646C1080 684 1075 720 1042 756C1001 759 966 750 942 724C932 696 931 670 940 646Z" fill="#70C272" opacity="0.95" />
+    <path d="M1004 588C1035 595 1060 610 1075 636C1068 649 1052 655 1028 654C1005 636 997 614 1004 588Z" fill="#87D27A" opacity="0.95" />
+    <path d="M992 582C960 596 942 624 939 654M1059 650C1047 698 1048 733 1060 760M980 612C1003 661 1003 712 980 764M935 676H1068M954 618C997 629 1035 629 1074 618M952 738C995 727 1034 727 1070 736" class="outline" />
+    <text x="894" y="800" class="heading" style="font-size:30px">INTERNET / HTTPS</text>
+    <text x="906" y="832" class="sub">Secure internet-based communication using TLS</text>
+  </g>
+
+  <!-- Database servers -->
+  <g>
+    <rect x="760" y="930" width="520" height="190" rx="18" class="card" />
+    <text x="884" y="988" class="heading" style="font-size:30px">DATABASE SERVERS</text>
+    <text x="832" y="1018" class="sub">PostgreSQL master / replica setup for high availability and failover</text>
+
+    <g transform="translate(850 1022)">
+      <ellipse cx="58" cy="16" rx="50" ry="16" fill="#D6ECFF" stroke="#2E597E" stroke-width="3" />
+      <path d="M8 16V76C8 84 30 92 58 92C86 92 108 84 108 76V16" class="outline" />
+      <ellipse cx="58" cy="46" rx="50" ry="16" fill="#D6ECFF" stroke="#2E597E" stroke-width="3" />
+      <text x="16" y="120" class="label">MASTER</text>
+    </g>
+    <g transform="translate(1040 1022)">
+      <ellipse cx="58" cy="16" rx="50" ry="16" fill="#D6ECFF" stroke="#2E597E" stroke-width="3" />
+      <path d="M8 16V76C8 84 30 92 58 92C86 92 108 84 108 76V16" class="outline" />
+      <ellipse cx="58" cy="46" rx="50" ry="16" fill="#D6ECFF" stroke="#2E597E" stroke-width="3" />
+      <text x="14" y="120" class="label">REPLICA</text>
+    </g>
+
+    <path d="M968 1084H1030" class="arrow-both" />
+  </g>
+
+  <!-- Network infrastructure -->
+  <g>
+    <rect x="1370" y="700" width="420" height="180" rx="18" class="card" />
+    <text x="1430" y="756" class="heading" style="font-size:27px">NETWORK INFRASTRUCTURE</text>
+    <text x="1508" y="792" class="sub">Cloud networking and HTTPS routing</text>
+    <text x="1502" y="818" class="sub">Firewall rules and access controls</text>
+    <text x="1488" y="844" class="sub">Traffic regulation between app and database layers</text>
+
+    <g transform="translate(1410 732)">
+      <rect x="0" y="34" width="88" height="66" rx="10" fill="#FFD279" stroke="#A9710D" stroke-width="3" />
+      <path d="M12 50H76M12 66H76M12 82H76" stroke="#A9710D" stroke-width="5" stroke-linecap="round" />
+      <path d="M44 34V100" stroke="#A9710D" stroke-width="5" />
+    </g>
+  </g>
+
+  <!-- Security infrastructure -->
+  <g>
+    <rect x="1370" y="930" width="420" height="190" rx="18" class="card" />
+    <text x="1552" y="996" class="heading" style="font-size:19px">SECURITY INFRASTRUCTURE</text>
+    <text x="1538" y="1032" class="sub">TLS certificates and secure HTTPS</text>
+    <text x="1538" y="1058" class="sub">Authentication, authorization, and roles</text>
+    <text x="1538" y="1084" class="sub">Firewalls and backend protection policies</text>
+
+    <g transform="translate(1358 968)">
+      <path d="M90 0L146 20V64C146 110 121 142 90 158C59 142 34 110 34 64V20L90 0Z" fill="url(#shieldBg)" stroke="#2E597E" stroke-width="4" />
+      <rect x="72" y="58" width="36" height="34" rx="8" fill="#F7FBFF" stroke="#2E597E" stroke-width="3" />
+      <path d="M80 58V46C80 31 92 20 108 20C124 20 136 31 136 46V58" class="outline" />
+      <path d="M90 106L106 122L128 96" stroke="#2D8F54" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+  </g>
+
+  <!-- arrows -->
+  <path d="M580 655H870" class="arrow-both" />
+  <path d="M1130 655H1410" class="arrow-both" />
+  <path d="M1000 580V392" class="arrow-both" />
+  <path d="M1000 772V930" class="arrow-both" />
+  <path d="M1280 1025H1430" class="arrow" />
+  <path d="M1370 790H1240" class="arrow" />
+  <path d="M1580 930V880" class="arrow" />
+
+  <!-- callouts -->
+  <g>
+    <rect x="610" y="615" width="214" height="54" rx="14" class="card" />
+    <text x="645" y="647" class="label">Consumers / Business Owners</text>
+  </g>
+  <g>
+    <rect x="1180" y="615" width="196" height="54" rx="14" class="card" />
+    <text x="1236" y="647" class="label">Admin Dashboard Access</text>
+  </g>
+</svg>

@@ -652,11 +652,16 @@ const OperationsConsole = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-10 space-y-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold">Admin Operations Console</h1>
-          <p className="text-muted-foreground max-w-3xl">
-            Search a business and review verification submissions, reported promotions, and promotion moderation items from one place.
-          </p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold">Admin Operations Console</h1>
+            <p className="max-w-3xl text-muted-foreground">
+              Search a business and review verification submissions, reported promotions, and promotion moderation items from one place.
+            </p>
+          </div>
+          <Button variant="outline" asChild>
+            <Link to="/admin/analytics">Open moderation analytics</Link>
+          </Button>
         </div>
 
         <Card>
