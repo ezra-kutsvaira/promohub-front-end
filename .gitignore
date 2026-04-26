@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.edge-headless/
+.edge-profile/
+.webview2-profile/
+*.dmp
+*.pma
+*.dat
+webview-debug.txt
