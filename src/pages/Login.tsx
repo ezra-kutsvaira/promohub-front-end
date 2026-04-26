@@ -1,9 +1,10 @@
 import { Navbar } from "@/components/Navbar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
-import { ShieldCheck } from "lucide-react";
+import { AlertCircle, ShieldCheck } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { useState } from "react";
@@ -12,6 +13,7 @@ const Login = () => {
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (user) {
     return <Navigate to="/dashboard" replace />;
@@ -25,13 +27,14 @@ const Login = () => {
     const mfaCode = String(formData.get("mfaCode") ?? "").trim() || undefined;
 
     try {
+      setFormError(null);
       setIsSubmitting(true);
       await signIn({ email, password, mfaCode });
       toast.success("Welcome back! We'll take you to your dashboard shortly.");
       navigate("/dashboard");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed. Please try again.";
-      toast.error(message);
+      setFormError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -54,7 +57,7 @@ const Login = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form className="space-y-4" onSubmit={handleSubmit}>
+              <form className="space-y-4" onSubmit={handleSubmit} onChange={() => formError && setFormError(null)}>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground" htmlFor="email">
                     Email address
@@ -79,6 +82,13 @@ const Login = () => {
                     Contact support
                   </a>
                 </div>
+                {formError ? (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>We could not sign you in</AlertTitle>
+                    <AlertDescription>{formError}</AlertDescription>
+                  </Alert>
+                ) : null}
                 <Button className="w-full" type="submit" disabled={isSubmitting}>
                   {isSubmitting ? "Signing in..." : "Log In"}
                 </Button>

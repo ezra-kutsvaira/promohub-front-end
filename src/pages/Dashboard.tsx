@@ -40,6 +40,12 @@ const PENDING_BUSINESS_STATUSES = new Set([
   "ADDITIONAL_DOCUMENTS_REQUIRED",
 ]);
 
+const RESUBMITTABLE_BUSINESS_STATUSES = new Set([
+  "REJECTED",
+  "MORE_DOCUMENTS_REQUESTED",
+  "ADDITIONAL_DOCUMENTS_REQUIRED",
+]);
+
 
 const FINAL_BUSINESS_STATUSES = new Set(["APPROVED", "VERIFIED", "REJECTED", "DECLINED"]);
 
@@ -266,6 +272,8 @@ const Dashboard = () => {
   const [pendingPromotionsCount, setPendingPromotionsCount] = useState(0);
   const [businessPromotions, setBusinessPromotions] = useState<Promotion[]>([]);
   const [businessSetupRequired, setBusinessSetupRequired] = useState(false);
+  const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
+  const [currentBusinessVerification, setCurrentBusinessVerification] = useState<BusinessVerificationReview | null>(null);
   const [adminPendingPromotions, setAdminPendingPromotions] = useState<Promotion[]>([]);
   const [adminApprovedPromotions, setAdminApprovedPromotions] = useState<Promotion[]>([]);
   const [adminRejectedPromotions, setAdminRejectedPromotions] = useState<Promotion[]>([]);
@@ -302,6 +310,8 @@ const Dashboard = () => {
 
             if (missingBusinessProfile) {
               setBusinessSetupRequired(true);
+              setCurrentBusiness(null);
+              setCurrentBusinessVerification(null);
               setBusinessPromotions([]);
               setPendingPromotionsCount(0);
               return;
@@ -313,6 +323,10 @@ const Dashboard = () => {
           if (!isMounted) return;
           if (!business) return;
           setBusinessSetupRequired(false);
+          setCurrentBusiness(business);
+          const businessVerification = await api.getBusinessVerification(business.id).catch(() => null);
+          if (!isMounted) return;
+          setCurrentBusinessVerification(businessVerification);
           const allBusinessPromotions = await api.getCurrentUserBusinessPromotions(business.id, user.id);
           if (!isMounted) return;
 
@@ -324,6 +338,8 @@ const Dashboard = () => {
         
         } else if (!isAdmin) {
           setBusinessSetupRequired(false);
+          setCurrentBusiness(null);
+          setCurrentBusinessVerification(null);
           const saved = await api.getSavedPromotions();
           if (!isMounted) return;
           setSavedPromotions(saved);
@@ -415,6 +431,11 @@ const Dashboard = () => {
   const approvedPromotions = promotionsWithNewlyCreated.filter(isApprovedPromotion);
   const rejectedPromotions = promotionsWithNewlyCreated.filter(isRejectedPromotion);
   const recentNotifications = notifications.slice(0, 4);
+  const businessVerificationStatus = String(
+    currentBusinessVerification?.status ?? currentBusiness?.businessVerificationStatus ?? "",
+  ).toUpperCase();
+  const businessNeedsVerificationChanges = RESUBMITTABLE_BUSINESS_STATUSES.has(businessVerificationStatus);
+  const businessVerificationNote = currentBusinessVerification?.rejectionReason?.trim() ?? "";
 
   const isSubmittingPromotionAction = (promotionId: number) => promotionActionId === promotionId;
 
@@ -706,6 +727,20 @@ const Dashboard = () => {
                   </div>
                   <Button variant="outline" className="ml-auto" asChild>
                     <Link to="/create-business-owner-account">Start application</Link>
+                  </Button>
+                </div>
+              )}
+              {isBusiness && !businessSetupRequired && businessNeedsVerificationChanges && (
+                <div className="flex items-start gap-4 rounded-lg border border-border p-4">
+                  <Store className="h-5 w-5 text-primary" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-foreground">Fix and resubmit your business verification</p>
+                    <p className="text-sm text-muted-foreground">
+                      {businessVerificationNote || "Update the requested details and send your business profile back for admin review."}
+                    </p>
+                  </div>
+                  <Button variant="outline" className="ml-auto" asChild>
+                    <Link to="/create-business-owner-account">Edit and resubmit</Link>
                   </Button>
                 </div>
               )}

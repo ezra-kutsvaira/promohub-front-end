@@ -1,16 +1,31 @@
 import { Navbar } from "@/components/Navbar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
-import { BadgeCheck, FileCheck, Shield, TrendingUp } from "lucide-react";
+import { AlertCircle, BadgeCheck, FileCheck, Shield, TrendingUp } from "lucide-react";
 import { useAuth, UserRole } from "@/lib/auth";
+import {
+  type BusinessOwnerFieldErrors,
+  formatPhoneNumber,
+  normalizeOwnerNationalId,
+  OWNER_NATIONAL_ID_EXAMPLE,
+  PHONE_NUMBER_EXAMPLE,
+  TIN_NUMBER_EXAMPLE,
+  validateBusinessOwnerFields,
+  validateOwnerNationalId,
+  validatePhoneNumber,
+  validateTinNumber,
+  validateVatNumber,
+  VAT_NUMBER_EXAMPLE,
+} from "@/lib/business-validation";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api, type AuthPayload, type BusinessDocumentType, type Category } from "@/lib/api";
 import { clearStagedSession, stageSession } from "@/lib/session";
 
-type RegisterRole  = Exclude<UserRole, "ADMIN">; 
+type RegisterRole  = Exclude<UserRole, "ADMIN">;
 
 const BUSINESS_UPLOAD_ENDPOINTS = [
   "/api/businesses/documents/upload",
@@ -136,6 +151,12 @@ const Register = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryCode, setSelectedCategoryCode] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<BusinessOwnerFieldErrors>({});
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [vatNumber, setVatNumber] = useState("");
+  const [tinNumber, setTinNumber] = useState("");
+  const [ownerNationalId, setOwnerNationalId] = useState("");
 
   const allowedMimeTypes = ["application/pdf", "image/png", "image/jpeg"];
   const maxFileSizeBytes = 10 * 1024 * 1024;
@@ -157,6 +178,29 @@ const Register = () => {
     if (file.size > maxFileSizeBytes) {
       throw new Error(`${label}: file size must be 10MB or less.`);
     }
+  };
+
+  const updateFieldError = (field: keyof BusinessOwnerFieldErrors, message?: string) => {
+    setFieldErrors((currentErrors) => {
+      if (!message) {
+        if (!currentErrors[field]) {
+          return currentErrors;
+        }
+
+        const nextErrors = { ...currentErrors };
+        delete nextErrors[field];
+        return nextErrors;
+      }
+
+      if (currentErrors[field] === message) {
+        return currentErrors;
+      }
+
+      return {
+        ...currentErrors,
+        [field]: message,
+      };
+    });
   };
 
   const uploadDocument = async (
@@ -190,16 +234,138 @@ const Register = () => {
     loadCategories();
   }, []);
 
+  useEffect(() => {
+    setFormError(null);
+    setFieldErrors({});
+  }, [role]);
+
+  const handlePhoneNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setPhoneNumber(nextValue);
+    if (formError) {
+      setFormError(null);
+    }
+
+    if (fieldErrors.phone) {
+      updateFieldError("phone", validatePhoneNumber(nextValue));
+    }
+  };
+
+  const handlePhoneNumberBlur = () => {
+    const formattedValue = formatPhoneNumber(phoneNumber);
+    if (formattedValue !== phoneNumber) {
+      setPhoneNumber(formattedValue);
+    }
+
+    updateFieldError("phone", validatePhoneNumber(formattedValue));
+  };
+
+  const handleVatNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setVatNumber(nextValue);
+    if (formError) {
+      setFormError(null);
+    }
+
+    if (fieldErrors.vatNumber) {
+      updateFieldError("vatNumber", validateVatNumber(nextValue));
+    }
+  };
+
+  const handleVatNumberBlur = () => {
+    const normalizedValue = vatNumber.trim();
+    if (normalizedValue !== vatNumber) {
+      setVatNumber(normalizedValue);
+    }
+
+    updateFieldError("vatNumber", validateVatNumber(normalizedValue));
+  };
+
+  const handleTinNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setTinNumber(nextValue);
+    if (formError) {
+      setFormError(null);
+    }
+
+    if (fieldErrors.tinNumber) {
+      updateFieldError("tinNumber", validateTinNumber(nextValue));
+    }
+  };
+
+  const handleTinNumberBlur = () => {
+    const normalizedValue = tinNumber.trim();
+    if (normalizedValue !== tinNumber) {
+      setTinNumber(normalizedValue);
+    }
+
+    updateFieldError("tinNumber", validateTinNumber(normalizedValue));
+  };
+
+  const handleOwnerNationalIdChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = normalizeOwnerNationalId(event.target.value);
+    setOwnerNationalId(nextValue);
+    if (formError) {
+      setFormError(null);
+    }
+
+    if (fieldErrors.ownerNationalId) {
+      updateFieldError("ownerNationalId", validateOwnerNationalId(nextValue));
+    }
+  };
+
+  const handleOwnerNationalIdBlur = () => {
+    const normalizedValue = normalizeOwnerNationalId(ownerNationalId);
+    if (normalizedValue !== ownerNationalId) {
+      setOwnerNationalId(normalizedValue);
+    }
+
+    updateFieldError("ownerNationalId", validateOwnerNationalId(normalizedValue));
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const fullName = String(formData.get("full-name") ?? "");
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
+    const formattedPhoneNumber = formatPhoneNumber(phoneNumber);
+    const normalizedVatNumber = vatNumber.trim();
+    const normalizedTinNumber = tinNumber.trim();
+    const normalizedOwnerNationalId = normalizeOwnerNationalId(ownerNationalId);
     let createdUserId: number | undefined;
     let createdBusinessId: number | undefined;
     let createdAuthResponse: AuthPayload | null = null;
     let currentStep = role === "BUSINESS_OWNER" ? "creating the login account" : "creating the account";
+
+    setFormError(null);
+
+    if (role === "BUSINESS_OWNER") {
+      const nextFieldErrors = validateBusinessOwnerFields({
+        phoneNumber: formattedPhoneNumber,
+        vatNumber: normalizedVatNumber,
+        tinNumber: normalizedTinNumber,
+        ownerNationalId: normalizedOwnerNationalId,
+      });
+
+      if (Object.keys(nextFieldErrors).length > 0) {
+        setPhoneNumber(formattedPhoneNumber);
+        setVatNumber(normalizedVatNumber);
+        setTinNumber(normalizedTinNumber);
+        setOwnerNationalId(normalizedOwnerNationalId);
+        setFieldErrors(nextFieldErrors);
+        setFormError("Please correct the highlighted business details before submitting.");
+        return;
+      }
+
+      setPhoneNumber(formattedPhoneNumber);
+      setVatNumber(normalizedVatNumber);
+      setTinNumber(normalizedTinNumber);
+      setOwnerNationalId(normalizedOwnerNationalId);
+      setFieldErrors({});
+    } else {
+      setFieldErrors({});
+    }
 
     try {
       setIsSubmitting(true);
@@ -281,7 +447,7 @@ const Register = () => {
           businessName: String(formData.get("business-name") ?? "").trim(),
           description: String(formData.get("description") ?? "").trim(),
           contactEmail: String(formData.get("contact-email") ?? email).trim(),
-          phoneNumber: String(formData.get("phone") ?? "").trim(),
+          phoneNumber: formattedPhoneNumber,
           category: String(formData.get("categoryName") ?? "").trim(),
           categoryCode: String(formData.get("categoryCode") ?? "") || undefined,
           websiteUrl: String(formData.get("website") ?? "").trim(),
@@ -302,9 +468,9 @@ const Register = () => {
         currentStep = "submitting the verification record";
         await api.requestBusinessVerification({
           businessId: createdBusiness.id,
-          vatNumber: String(formData.get("vat-number") ?? "").trim(),
-          tinNumber: String(formData.get("tin-number") ?? "").trim(),
-          ownerNationalId: String(formData.get("owner-national-id") ?? "").trim(),
+          vatNumber: normalizedVatNumber,
+          tinNumber: normalizedTinNumber,
+          ownerNationalId: normalizedOwnerNationalId,
           supportingDocumentsUrl: businessRegistrationCertificateUrl ?? proofOfBusinessAddressDocumentUrl,
         });
 
@@ -360,9 +526,9 @@ const Register = () => {
       await signOut();
       if (role === "BUSINESS_OWNER") {
         logBusinessRegistrationDiagnostic(error, failedStep, rollbackFailed, createdUserId);
-        toast.error(buildBusinessRegistrationFailureMessage(error, failedStep, rollbackFailed));
+        setFormError(buildBusinessRegistrationFailureMessage(error, failedStep, rollbackFailed));
       } else {
-        toast.error(normalizeErrorMessage(error));
+        setFormError(normalizeErrorMessage(error));
       }
     } finally {
       clearStagedSession();
@@ -483,7 +649,26 @@ const Register = () => {
                         <label className="text-sm font-medium text-foreground" htmlFor="phone">
                           Phone number
                         </label>
-                        <Input id="phone" name="phone" type="tel" placeholder="+263 77 000 0000" required />
+                        <Input
+                          id="phone"
+                          name="phone"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          placeholder={PHONE_NUMBER_EXAMPLE}
+                          value={phoneNumber}
+                          onChange={handlePhoneNumberChange}
+                          onBlur={handlePhoneNumberBlur}
+                          aria-invalid={Boolean(fieldErrors.phone)}
+                          aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
+                          className={fieldErrors.phone ? "border-destructive focus-visible:ring-destructive" : undefined}
+                          required
+                        />
+                        {fieldErrors.phone ? (
+                          <p id="phone-error" className="text-sm font-medium text-destructive">
+                            {fieldErrors.phone}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-3">
@@ -491,19 +676,75 @@ const Register = () => {
                         <label className="text-sm font-medium text-foreground" htmlFor="vat-number">
                           VAT number
                         </label>
-                        <Input id="vat-number" name="vat-number" placeholder="2200000000" required />
+                        <Input
+                          id="vat-number"
+                          name="vat-number"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          placeholder={VAT_NUMBER_EXAMPLE}
+                          value={vatNumber}
+                          onChange={handleVatNumberChange}
+                          onBlur={handleVatNumberBlur}
+                          aria-invalid={Boolean(fieldErrors.vatNumber)}
+                          aria-describedby={fieldErrors.vatNumber ? "vat-number-error" : undefined}
+                          className={fieldErrors.vatNumber ? "border-destructive focus-visible:ring-destructive" : undefined}
+                          required
+                        />
+                        {fieldErrors.vatNumber ? (
+                          <p id="vat-number-error" className="text-sm font-medium text-destructive">
+                            {fieldErrors.vatNumber}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground" htmlFor="tin-number">
                           TIN number
                         </label>
-                        <Input id="tin-number" name="tin-number" placeholder="1234567890" required />
+                        <Input
+                          id="tin-number"
+                          name="tin-number"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          placeholder={TIN_NUMBER_EXAMPLE}
+                          value={tinNumber}
+                          onChange={handleTinNumberChange}
+                          onBlur={handleTinNumberBlur}
+                          aria-invalid={Boolean(fieldErrors.tinNumber)}
+                          aria-describedby={fieldErrors.tinNumber ? "tin-number-error" : undefined}
+                          className={fieldErrors.tinNumber ? "border-destructive focus-visible:ring-destructive" : undefined}
+                          required
+                        />
+                        {fieldErrors.tinNumber ? (
+                          <p id="tin-number-error" className="text-sm font-medium text-destructive">
+                            {fieldErrors.tinNumber}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground" htmlFor="owner-national-id">
                           Owner national ID
                         </label>
-                        <Input id="owner-national-id" name="owner-national-id" placeholder="63-123456-A-12" required />
+                        <Input
+                          id="owner-national-id"
+                          name="owner-national-id"
+                          autoCapitalize="characters"
+                          autoCorrect="off"
+                          placeholder={OWNER_NATIONAL_ID_EXAMPLE}
+                          value={ownerNationalId}
+                          onChange={handleOwnerNationalIdChange}
+                          onBlur={handleOwnerNationalIdBlur}
+                          aria-invalid={Boolean(fieldErrors.ownerNationalId)}
+                          aria-describedby={fieldErrors.ownerNationalId ? "owner-national-id-error" : undefined}
+                          className={
+                            fieldErrors.ownerNationalId ? "border-destructive focus-visible:ring-destructive" : undefined
+                          }
+                          required
+                        />
+                        {fieldErrors.ownerNationalId ? (
+                          <p id="owner-national-id-error" className="text-sm font-medium text-destructive">
+                            {fieldErrors.ownerNationalId}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
@@ -570,6 +811,17 @@ const Register = () => {
                     </div>
                   </>
                 )}
+                {formError ? (
+                  <Alert id="registration-form-error" variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>
+                      {Object.keys(fieldErrors).length > 0
+                        ? "Please fix the highlighted fields"
+                        : "We could not complete your registration"}
+                    </AlertTitle>
+                    <AlertDescription>{formError}</AlertDescription>
+                  </Alert>
+                ) : null}
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? "Submitting..." : role === "BUSINESS_OWNER" ? "Submit verification request" : "Create account"}
                 </Button>

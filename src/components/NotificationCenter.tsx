@@ -37,6 +37,7 @@ const getNotificationIcon = (eventType?: string | null) => {
   switch (eventType) {
     case "BUSINESS_VERIFICATION_APPROVED":
       return ShieldCheck;
+    case "BUSINESS_VERIFICATION_MORE_DOCUMENTS_REQUESTED":
     case "BUSINESS_VERIFICATION_REJECTED":
       return ShieldAlert;
     case "PROMOTION_APPROVED":

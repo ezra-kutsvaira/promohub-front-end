@@ -529,7 +529,7 @@ const OperationsConsole = () => {
       }
 
       if (action === "MORE_DOCUMENTS_REQUESTED") {
-        throw new Error("The backend does not expose a request-more-documents endpoint for business verification yet.");
+        await api.requestAdditionalBusinessVerificationDocuments({ reviewId, businessId }, normalizedNote);
       }
 
       setQueueItems((previous) => previous.map((item) => {
@@ -568,7 +568,11 @@ const OperationsConsole = () => {
       setRejectNote("");
       setRequestDocsNote("");
 
-      toast.success(`Verification ${formatStatusLabel(action)}.`);
+      toast.success(
+        action === "MORE_DOCUMENTS_REQUESTED"
+          ? "Requested additional business verification details."
+          : `Verification ${formatStatusLabel(action)}.`,
+      );
       await loadQueue();
     } catch (error) {
       console.error("Unable to submit verification action", error);

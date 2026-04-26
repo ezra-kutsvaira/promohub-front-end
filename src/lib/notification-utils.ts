@@ -18,6 +18,10 @@ const NOTIFICATION_EVENT_METADATA: Record<string, NotificationEventMetadata> = {
     label: "Business verification approved",
     description: "Your business owner account was approved and can now publish promotions.",
   },
+  BUSINESS_VERIFICATION_MORE_DOCUMENTS_REQUESTED: {
+    label: "Business verification needs changes",
+    description: "Your business verification needs corrections or replacement documents before approval.",
+  },
   BUSINESS_VERIFICATION_REJECTED: {
     label: "Business verification rejected",
     description: "Your business verification needs changes before it can be approved.",
@@ -82,6 +86,7 @@ const NOTIFICATION_EVENT_METADATA: Record<string, NotificationEventMetadata> = {
 
 export const NOTIFICATION_EVENT_ORDER: NotificationEventType[] = [
   "BUSINESS_VERIFICATION_APPROVED",
+  "BUSINESS_VERIFICATION_MORE_DOCUMENTS_REQUESTED",
   "BUSINESS_VERIFICATION_REJECTED",
   "PROMOTION_APPROVED",
   "PROMOTION_REJECTED",

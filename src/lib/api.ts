@@ -398,6 +398,8 @@ export type BusinessCreateRequest = {
   proofOfBusinessAddressDocumentUrl?: string;
 };
 
+export type BusinessUpdateRequest = Omit<BusinessCreateRequest, "ownerId">;
+
 export type BusinessDocumentType =
   | "TAX_CLEARANCE"
   | "CERTIFIED_REGISTRANT_ID"
@@ -424,6 +426,11 @@ export type Business = {
   categoryCode?: string;
   websiteUrl: string;
   address: string;
+  taxClearanceDocumentUrl?: string;
+  certifiedRegistrantIdDocumentUrl?: string;
+  businessRegistrationCertificateUrl?: string;
+  proofOfBusinessAddressDocumentUrl?: string;
+  logoUrl?: string;
   city: string;
   country: string;
   businessVerificationStatus: string;
@@ -451,6 +458,7 @@ export type BusinessVerificationReview = {
   ownerNationalId?: string;
   supportingDocumentsUrl?: string;
   submittedAt?: string;
+  rejectionReason?: string;
   reviewHistory?: unknown[];
   reviewerHistory?: unknown[];
   notesHistory?: unknown[];
@@ -575,6 +583,7 @@ export type NotificationChannel = "IN_APP" | "EMAIL" | "SMS" | "WHATSAPP" | stri
 
 export type NotificationEventType =
   | "BUSINESS_VERIFICATION_APPROVED"
+  | "BUSINESS_VERIFICATION_MORE_DOCUMENTS_REQUESTED"
   | "BUSINESS_VERIFICATION_REJECTED"
   | "PROMOTION_APPROVED"
   | "PROMOTION_REJECTED"
@@ -1277,6 +1286,7 @@ const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerifica
     ownerNationalId: pickString(["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number", "nationalIdNumber", "national_id_number", "ownerNationalID", "owner_nationalID", "ownerNationalIdentityNumber", "owner_national_identity_number"]),
     supportingDocumentsUrl: pickString(["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url", "documentUrl", "document_url", "supportingDocumentUrl"]),
     submittedAt: pickString(["submittedAt", "submitted_at", "createdAt", "created_at", "requestedAt", "requested_at"]),
+    rejectionReason: pickString(["rejectionReason", "rejection_reason", "declineReason", "decline_reason", "reviewNote", "review_note", "note", "reason"]),
     reviewHistory: pickArray(["reviewHistory"]),
     reviewerHistory: pickArray(["reviewerHistory"]),
     notesHistory: pickArray(["notesHistory"]),
@@ -1950,6 +1960,45 @@ export const api = {
       if (isUnauthorizedError(error)) {
         throw new Error(
           "Business profile creation was rejected as unauthorized. Confirm POST /api/businesses accepts the new account's access token immediately after signup and that the registered user has the BUSINESS_OWNER role required to create a business profile."
+        );
+      }
+
+      throw error;
+    }
+  },
+  updateBusiness: async (id: number | string, payload: BusinessUpdateRequest) => {
+    try {
+      return await apiRequestWithMethodAndPathAlternatives<Business>(
+        [`/api/businesses/${id}`],
+        ["PUT", "PATCH"],
+        JSON.stringify(payload),
+        [400, 404, 405],
+      );
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        throw new Error(
+          "Business update API is not available. Backend must expose PUT or PATCH /api/businesses/{id} so owners can correct and resubmit an existing business profile."
+        );
+      }
+
+      if (isMethodNotSupportedError(error)) {
+        throw new Error(
+          "Business update endpoint exists but does not accept PUT or PATCH. Backend must allow business owners to update an existing business profile before resubmitting verification."
+        );
+      }
+
+      if (error instanceof ApiError && error.status === 400) {
+        const detail = error.message?.trim();
+        throw new Error(
+          detail
+            ? `Business update was rejected by the backend: ${detail}`
+            : "Business update was rejected by the backend."
+        );
+      }
+
+      if (isUnauthorizedError(error)) {
+        throw new Error(
+          "Business update was rejected as unauthorized. Confirm PUT or PATCH /api/businesses/{id} accepts the authenticated business owner's token."
         );
       }
 

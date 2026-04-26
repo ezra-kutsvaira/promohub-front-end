@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BadgeCheck, FileCheck, Shield, Store } from "lucide-react";
+import { AlertCircle, BadgeCheck, FileCheck, Shield, Store } from "lucide-react";
 
 import { Navbar } from "@/components/Navbar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,8 +11,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
-import { api, type AuthPayload, type Business, type BusinessDocumentType, type BusinessVerificationReview, type Category } from "@/lib/api";
+import {
+  api,
+  type AuthPayload,
+  type Business,
+  type BusinessDocumentType,
+  type BusinessUpdateRequest,
+  type BusinessVerificationReview,
+  type Category,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import {
+  type BusinessOwnerFieldErrors,
+  formatPhoneNumber,
+  normalizeOwnerNationalId,
+  OWNER_NATIONAL_ID_EXAMPLE,
+  PHONE_NUMBER_EXAMPLE,
+  TIN_NUMBER_EXAMPLE,
+  validateBusinessOwnerFields,
+  validateOwnerNationalId,
+  validatePhoneNumber,
+  validateTinNumber,
+  validateVatNumber,
+  VAT_NUMBER_EXAMPLE,
+} from "@/lib/business-validation";
 
 const normalizeErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Unable to submit your business owner account request.";
@@ -34,6 +57,23 @@ const normalizeReturnedUserRole = (role: string | null | undefined) => {
   return normalizedRole;
 };
 
+const RESUBMITTABLE_BUSINESS_STATUSES = new Set([
+  "REJECTED",
+  "MORE_DOCUMENTS_REQUESTED",
+  "ADDITIONAL_DOCUMENTS_REQUIRED",
+]);
+
+type BusinessDraft = {
+  businessName: string;
+  description: string;
+  contactEmail: string;
+  address: string;
+  city: string;
+  country: string;
+  websiteUrl: string;
+  logoUrl: string;
+};
+
 const CreateBusinessOwnerAccount = () => {
   const { user, establishSession } = useAuth();
   const navigate = useNavigate();
@@ -44,6 +84,23 @@ const CreateBusinessOwnerAccount = () => {
   const [isCheckingExistingBusiness, setIsCheckingExistingBusiness] = useState(false);
   const [existingBusiness, setExistingBusiness] = useState<Business | null>(null);
   const [existingVerification, setExistingVerification] = useState<BusinessVerificationReview | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<BusinessOwnerFieldErrors>({});
+  const [businessDraft, setBusinessDraft] = useState<BusinessDraft>({
+    businessName: "",
+    description: "",
+    contactEmail: user?.email ?? "",
+    address: "",
+    city: "",
+    country: "",
+    websiteUrl: "",
+    logoUrl: "",
+  });
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [vatNumber, setVatNumber] = useState("");
+  const [tinNumber, setTinNumber] = useState("");
+  const [ownerNationalId, setOwnerNationalId] = useState("");
+  const [prefilledBusinessId, setPrefilledBusinessId] = useState<number | null>(null);
 
   const allowedMimeTypes = ["application/pdf", "image/png", "image/jpeg"];
   const maxFileSizeBytes = 10 * 1024 * 1024;
@@ -101,13 +158,51 @@ const CreateBusinessOwnerAccount = () => {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!existingBusiness) {
+      setPrefilledBusinessId(null);
+      return;
+    }
+
+    if (prefilledBusinessId === existingBusiness.id) {
+      return;
+    }
+
+    if (!existingBusiness.categoryCode && categories.length === 0) {
+      return;
+    }
+
+    setBusinessDraft({
+      businessName: existingBusiness.businessName ?? "",
+      description: existingBusiness.description ?? "",
+      contactEmail: existingBusiness.contactEmail ?? user?.email ?? "",
+      address: existingBusiness.address ?? "",
+      city: existingBusiness.city ?? "",
+      country: existingBusiness.country ?? "",
+      websiteUrl: existingBusiness.websiteUrl ?? "",
+      logoUrl: existingBusiness.logoUrl ?? "",
+    });
+    setPhoneNumber(formatPhoneNumber(existingBusiness.phoneNumber ?? ""));
+    setVatNumber(existingVerification?.vatNumber?.trim() ?? "");
+    setTinNumber(existingVerification?.tinNumber?.trim() ?? "");
+    setOwnerNationalId(normalizeOwnerNationalId(existingVerification?.ownerNationalId ?? ""));
+    setSelectedCategoryCode(
+      existingBusiness.categoryCode
+      ?? categories.find((category) => category.name === existingBusiness.category)?.code
+      ?? "",
+    );
+    setFieldErrors({});
+    setFormError(null);
+    setPrefilledBusinessId(existingBusiness.id);
+  }, [categories, existingBusiness, existingVerification, prefilledBusinessId, user?.email]);
+
   if (!user) {
     return null;
   }
 
   const isBusinessOwner = user.role === "BUSINESS_OWNER";
-  const pageTitle = isBusinessOwner ? "Complete your business owner setup" : "Create Business Owner Account";
-  const pageDescription = isBusinessOwner
+  const defaultPageTitle = isBusinessOwner ? "Complete your business owner setup" : "Create Business Owner Account";
+  const defaultPageDescription = isBusinessOwner
     ? "Finish submitting your business information and verification documents so admins can review your account."
     : "Use your current customer login, submit your business details and required documents, and send the account for admin approval.";
 
@@ -124,9 +219,14 @@ const CreateBusinessOwnerAccount = () => {
   const uploadDocument = async (
     documentType: BusinessDocumentType,
     file: File | null,
-    { required, label }: { required: boolean; label: string },
+    { required, label, existingDocumentUrl }: { required: boolean; label: string; existingDocumentUrl?: string | null },
   ) => {
     if (!file || file.size === 0) {
+      const normalizedExistingDocumentUrl = existingDocumentUrl?.trim();
+      if (normalizedExistingDocumentUrl) {
+        return normalizedExistingDocumentUrl;
+      }
+
       if (required) {
         throw new Error(`${label} is required.`);
       }
@@ -138,15 +238,170 @@ const CreateBusinessOwnerAccount = () => {
     return uploaded.documentUrl;
   };
 
+  const updateFieldError = (field: keyof BusinessOwnerFieldErrors, message?: string) => {
+    setFieldErrors((currentErrors) => {
+      if (!message) {
+        if (!currentErrors[field]) {
+          return currentErrors;
+        }
+
+        const nextErrors = { ...currentErrors };
+        delete nextErrors[field];
+        return nextErrors;
+      }
+
+      if (currentErrors[field] === message) {
+        return currentErrors;
+      }
+
+      return {
+        ...currentErrors,
+        [field]: message,
+      };
+    });
+  };
+
+  const updateBusinessDraftField = (field: keyof BusinessDraft, value: string) => {
+    setBusinessDraft((currentDraft) => ({
+      ...currentDraft,
+      [field]: value,
+    }));
+    if (formError) {
+      setFormError(null);
+    }
+  };
+
+  const handlePhoneNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setPhoneNumber(nextValue);
+    if (formError) {
+      setFormError(null);
+    }
+
+    if (fieldErrors.phone) {
+      updateFieldError("phone", validatePhoneNumber(nextValue));
+    }
+  };
+
+  const handlePhoneNumberBlur = () => {
+    const formattedValue = formatPhoneNumber(phoneNumber);
+    if (formattedValue !== phoneNumber) {
+      setPhoneNumber(formattedValue);
+    }
+
+    updateFieldError("phone", validatePhoneNumber(formattedValue));
+  };
+
+  const handleVatNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setVatNumber(nextValue);
+    if (formError) {
+      setFormError(null);
+    }
+
+    if (fieldErrors.vatNumber) {
+      updateFieldError("vatNumber", validateVatNumber(nextValue));
+    }
+  };
+
+  const handleVatNumberBlur = () => {
+    const normalizedValue = vatNumber.trim();
+    if (normalizedValue !== vatNumber) {
+      setVatNumber(normalizedValue);
+    }
+
+    updateFieldError("vatNumber", validateVatNumber(normalizedValue));
+  };
+
+  const handleTinNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value;
+    setTinNumber(nextValue);
+    if (formError) {
+      setFormError(null);
+    }
+
+    if (fieldErrors.tinNumber) {
+      updateFieldError("tinNumber", validateTinNumber(nextValue));
+    }
+  };
+
+  const handleTinNumberBlur = () => {
+    const normalizedValue = tinNumber.trim();
+    if (normalizedValue !== tinNumber) {
+      setTinNumber(normalizedValue);
+    }
+
+    updateFieldError("tinNumber", validateTinNumber(normalizedValue));
+  };
+
+  const handleOwnerNationalIdChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = normalizeOwnerNationalId(event.target.value);
+    setOwnerNationalId(nextValue);
+    if (formError) {
+      setFormError(null);
+    }
+
+    if (fieldErrors.ownerNationalId) {
+      updateFieldError("ownerNationalId", validateOwnerNationalId(nextValue));
+    }
+  };
+
+  const handleOwnerNationalIdBlur = () => {
+    const normalizedValue = normalizeOwnerNationalId(ownerNationalId);
+    if (normalizedValue !== ownerNationalId) {
+      setOwnerNationalId(normalizedValue);
+    }
+
+    updateFieldError("ownerNationalId", validateOwnerNationalId(normalizedValue));
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const formattedPhoneNumber = formatPhoneNumber(phoneNumber);
+    const normalizedVatNumber = vatNumber.trim();
+    const normalizedTinNumber = tinNumber.trim();
+    const normalizedOwnerNationalId = normalizeOwnerNationalId(ownerNationalId);
+    const isResubmittingExistingBusiness =
+      existingBusiness !== null
+      && RESUBMITTABLE_BUSINESS_STATUSES.has(
+        String(
+          existingVerification?.status
+          ?? existingBusiness.businessVerificationStatus
+          ?? (existingBusiness.verified ? "VERIFIED" : ""),
+        ).toUpperCase(),
+      );
+
+    setFormError(null);
 
     if (!isBusinessOwner && !confirmUpgrade) {
-      toast.error("Please confirm that you want to upgrade this account before continuing.");
+      setFormError("Please confirm that you want to upgrade this account before continuing.");
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const nextFieldErrors = validateBusinessOwnerFields({
+      phoneNumber: formattedPhoneNumber,
+      vatNumber: normalizedVatNumber,
+      tinNumber: normalizedTinNumber,
+      ownerNationalId: normalizedOwnerNationalId,
+    });
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setPhoneNumber(formattedPhoneNumber);
+      setVatNumber(normalizedVatNumber);
+      setTinNumber(normalizedTinNumber);
+      setOwnerNationalId(normalizedOwnerNationalId);
+      setFieldErrors(nextFieldErrors);
+      setFormError("Please correct the highlighted business details before submitting.");
+      return;
+    }
+
+    setPhoneNumber(formattedPhoneNumber);
+    setVatNumber(normalizedVatNumber);
+    setTinNumber(normalizedTinNumber);
+    setOwnerNationalId(normalizedOwnerNationalId);
+    setFieldErrors({});
+
     let resolvedUserId = user.id;
     let upgradeResponse: AuthPayload | null = null;
     let createdBusinessId: number | undefined;
@@ -159,14 +414,6 @@ const CreateBusinessOwnerAccount = () => {
       const businessRegistrationCertificateFile =
         (formData.get("business-registration-certificate-file") as File) ?? null;
       const proofOfBusinessAddressFile = (formData.get("proof-of-business-address-file") as File) ?? null;
-
-      if (!taxClearanceFile || taxClearanceFile.size === 0) {
-        throw new Error("Tax clearance document is required.");
-      }
-
-      if (!certifiedRegistrantIdFile || certifiedRegistrantIdFile.size === 0) {
-        throw new Error("Certified registrant ID document is required.");
-      }
 
       if (!isBusinessOwner) {
         upgradeResponse = await api.upgradeCurrentUserToBusinessOwner();
@@ -191,22 +438,38 @@ const CreateBusinessOwnerAccount = () => {
       const taxClearanceDocumentUrl = await uploadDocument(
         "TAX_CLEARANCE",
         taxClearanceFile,
-        { required: true, label: "Tax clearance document" },
+        {
+          required: true,
+          label: "Tax clearance document",
+          existingDocumentUrl: isResubmittingExistingBusiness ? existingBusiness?.taxClearanceDocumentUrl : undefined,
+        },
       );
       const certifiedRegistrantIdDocumentUrl = await uploadDocument(
         "CERTIFIED_REGISTRANT_ID",
         certifiedRegistrantIdFile,
-        { required: true, label: "Certified registrant ID document" },
+        {
+          required: true,
+          label: "Certified registrant ID document",
+          existingDocumentUrl: isResubmittingExistingBusiness ? existingBusiness?.certifiedRegistrantIdDocumentUrl : undefined,
+        },
       );
       const businessRegistrationCertificateUrl = await uploadDocument(
         "BUSINESS_REGISTRATION_CERTIFICATE",
         businessRegistrationCertificateFile,
-        { required: false, label: "Business registration certificate" },
+        {
+          required: false,
+          label: "Business registration certificate",
+          existingDocumentUrl: isResubmittingExistingBusiness ? existingBusiness?.businessRegistrationCertificateUrl : undefined,
+        },
       );
       const proofOfBusinessAddressDocumentUrl = await uploadDocument(
         "PROOF_OF_BUSINESS_ADDRESS",
         proofOfBusinessAddressFile,
-        { required: false, label: "Proof of business address document" },
+        {
+          required: false,
+          label: "Proof of business address document",
+          existingDocumentUrl: isResubmittingExistingBusiness ? existingBusiness?.proofOfBusinessAddressDocumentUrl : undefined,
+        },
       );
 
       if (!taxClearanceDocumentUrl || !certifiedRegistrantIdDocumentUrl) {
@@ -215,39 +478,49 @@ const CreateBusinessOwnerAccount = () => {
 
       const businessPayload = {
         ownerId: resolvedUserId,
-        businessName: String(formData.get("business-name") ?? "").trim(),
-        description: String(formData.get("description") ?? "").trim(),
-        contactEmail: String(formData.get("contact-email") ?? user.email).trim(),
-        phoneNumber: String(formData.get("phone") ?? "").trim(),
+        businessName: businessDraft.businessName.trim(),
+        description: businessDraft.description.trim(),
+        contactEmail: businessDraft.contactEmail.trim(),
+        phoneNumber: formattedPhoneNumber,
         category: String(formData.get("categoryName") ?? "").trim(),
         categoryCode: String(formData.get("categoryCode") ?? "") || undefined,
-        websiteUrl: String(formData.get("website") ?? "").trim(),
-        address: String(formData.get("address") ?? "").trim(),
-        logoUrl: String(formData.get("logo-url") ?? "").trim(),
-        city: String(formData.get("city") ?? "").trim(),
-        country: String(formData.get("country") ?? "").trim(),
+        websiteUrl: businessDraft.websiteUrl.trim(),
+        address: businessDraft.address.trim(),
+        logoUrl: businessDraft.logoUrl.trim(),
+        city: businessDraft.city.trim(),
+        country: businessDraft.country.trim(),
         taxClearanceDocumentUrl,
         certifiedRegistrantIdDocumentUrl,
         businessRegistrationCertificateUrl,
         proofOfBusinessAddressDocumentUrl,
       };
 
-      const createdBusiness = await api.createBusiness(businessPayload);
-      createdBusinessId = createdBusiness.id;
+      let targetBusinessId: number;
+      if (isResubmittingExistingBusiness && existingBusiness) {
+        const { ownerId: _unusedOwnerId, ...businessUpdatePayload } = businessPayload;
+        await api.updateBusiness(existingBusiness.id, businessUpdatePayload as BusinessUpdateRequest);
+        targetBusinessId = existingBusiness.id;
+      } else {
+        const createdBusiness = await api.createBusiness(businessPayload);
+        createdBusinessId = createdBusiness.id;
+        targetBusinessId = createdBusiness.id;
+      }
 
       await api.requestBusinessVerification({
-        businessId: createdBusiness.id,
-        vatNumber: String(formData.get("vat-number") ?? "").trim(),
-        tinNumber: String(formData.get("tin-number") ?? "").trim(),
-        ownerNationalId: String(formData.get("owner-national-id") ?? "").trim(),
+        businessId: targetBusinessId,
+        vatNumber: normalizedVatNumber,
+        tinNumber: normalizedTinNumber,
+        ownerNationalId: normalizedOwnerNationalId,
         supportingDocumentsUrl:
           businessRegistrationCertificateUrl ?? proofOfBusinessAddressDocumentUrl,
       });
 
       toast.success(
-        upgradeResponse
-          ? "Your business owner account has been created and submitted for admin approval."
-          : "Your business owner application has been submitted for admin approval.",
+        isResubmittingExistingBusiness
+          ? "Your updated business verification has been resubmitted for admin review."
+          : upgradeResponse
+            ? "Your business owner account has been created and submitted for admin approval."
+            : "Your business owner application has been submitted for admin approval.",
       );
       navigate("/dashboard");
     } catch (error) {
@@ -265,7 +538,7 @@ const CreateBusinessOwnerAccount = () => {
           ? `${baseMessage} Your account role has already been upgraded, so you can retry this form to finish setup.`
           : baseMessage;
 
-      toast.error(message);
+      setFormError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -275,6 +548,17 @@ const CreateBusinessOwnerAccount = () => {
     existingVerification?.status ??
     existingBusiness?.businessVerificationStatus ??
     (existingBusiness?.verified ? "VERIFIED" : null);
+  const normalizedVerificationStatus = String(verificationStatus ?? "").toUpperCase();
+  const canResubmitExistingBusiness = Boolean(
+    existingBusiness && RESUBMITTABLE_BUSINESS_STATUSES.has(normalizedVerificationStatus),
+  );
+  const reviewReason = existingVerification?.rejectionReason?.trim() ?? null;
+  const pageTitle = canResubmitExistingBusiness
+    ? "Update and resubmit your business verification"
+    : defaultPageTitle;
+  const pageDescription = canResubmitExistingBusiness
+    ? "Fix the requested business details, replace any documents that need correction, and send the same business profile back for admin review."
+    : defaultPageDescription;
 
   return (
     <div className="min-h-screen bg-background">
@@ -295,7 +579,7 @@ const CreateBusinessOwnerAccount = () => {
               Checking your business owner setup...
             </CardContent>
           </Card>
-        ) : existingBusiness ? (
+        ) : existingBusiness && !canResubmitExistingBusiness ? (
           <Card className="mx-auto max-w-3xl border-border">
             <CardHeader>
               <CardTitle>Business owner setup already submitted</CardTitle>
@@ -323,22 +607,49 @@ const CreateBusinessOwnerAccount = () => {
             <Card className="border-border shadow-sm">
               <CardHeader>
                 <CardTitle>
-                  {isBusinessOwner ? "Business owner application" : "Upgrade this account"}
+                  {canResubmitExistingBusiness
+                    ? "Correct your business owner application"
+                    : isBusinessOwner
+                      ? "Business owner application"
+                      : "Upgrade this account"}
                 </CardTitle>
                 <CardDescription>
-                  Submit the business information and supporting documents required for admin review.
+                  {canResubmitExistingBusiness
+                    ? "Use the reviewer note below to fix the flagged details, then resubmit the same business profile."
+                    : "Submit the business information and supporting documents required for admin review."}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form className="grid gap-4" onSubmit={handleSubmit}>
+                  {canResubmitExistingBusiness && existingBusiness ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>
+                        {normalizedVerificationStatus === "MORE_DOCUMENTS_REQUESTED"
+                          ? "More documents or corrections were requested"
+                          : "Your previous verification was rejected"}
+                      </AlertTitle>
+                      <AlertDescription>
+                        {reviewReason
+                          ? reviewReason
+                          : "Review the flagged details, update the form below, and resubmit for approval."}
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+
                   {!isBusinessOwner && (
                     <div className="rounded-2xl border border-border bg-muted/20 p-4">
                       <div className="flex items-start gap-3">
-                        <Checkbox
-                          id="confirm-upgrade"
-                          checked={confirmUpgrade}
-                          onCheckedChange={(checked) => setConfirmUpgrade(Boolean(checked))}
-                        />
+                          <Checkbox
+                            id="confirm-upgrade"
+                            checked={confirmUpgrade}
+                            onCheckedChange={(checked) => {
+                              setConfirmUpgrade(Boolean(checked));
+                              if (formError) {
+                                setFormError(null);
+                              }
+                            }}
+                          />
                         <div className="space-y-1">
                           <Label htmlFor="confirm-upgrade" className="cursor-pointer">
                             Confirm account upgrade
@@ -355,7 +666,14 @@ const CreateBusinessOwnerAccount = () => {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="business-name">Business name</Label>
-                      <Input id="business-name" name="business-name" placeholder="PromoHub Retailers" required />
+                      <Input
+                        id="business-name"
+                        name="business-name"
+                        placeholder="PromoHub Retailers"
+                        value={businessDraft.businessName}
+                        onChange={(event) => updateBusinessDraftField("businessName", event.target.value)}
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="categoryCode">Business category</Label>
@@ -389,6 +707,8 @@ const CreateBusinessOwnerAccount = () => {
                       name="description"
                       placeholder="Tell admins what your business does and who it serves."
                       rows={4}
+                      value={businessDraft.description}
+                      onChange={(event) => updateBusinessDraftField("description", event.target.value)}
                       required
                     />
                   </div>
@@ -401,31 +721,129 @@ const CreateBusinessOwnerAccount = () => {
                         name="contact-email"
                         type="email"
                         placeholder={user.email}
-                        defaultValue={user.email}
+                        value={businessDraft.contactEmail}
+                        onChange={(event) => updateBusinessDraftField("contactEmail", event.target.value)}
                         required
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone number</Label>
-                      <Input id="phone" name="phone" type="tel" placeholder="+263 77 000 0000" required />
+                      <Input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        placeholder={PHONE_NUMBER_EXAMPLE}
+                        value={phoneNumber}
+                        onChange={handlePhoneNumberChange}
+                        onBlur={handlePhoneNumberBlur}
+                        aria-invalid={Boolean(fieldErrors.phone)}
+                        aria-describedby={fieldErrors.phone ? "business-owner-phone-error" : undefined}
+                        className={fieldErrors.phone ? "border-destructive focus-visible:ring-destructive" : undefined}
+                        required
+                      />
+                      {fieldErrors.phone ? (
+                        <p id="business-owner-phone-error" className="text-sm font-medium text-destructive">
+                          {fieldErrors.phone}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="vat-number">VAT number</Label>
-                      <Input id="vat-number" name="vat-number" placeholder="2200000000" required />
+                      <Input
+                        id="vat-number"
+                        name="vat-number"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder={VAT_NUMBER_EXAMPLE}
+                        value={vatNumber}
+                        onChange={handleVatNumberChange}
+                        onBlur={handleVatNumberBlur}
+                        aria-invalid={Boolean(fieldErrors.vatNumber)}
+                        aria-describedby={fieldErrors.vatNumber ? "business-owner-vat-number-error" : undefined}
+                        className={fieldErrors.vatNumber ? "border-destructive focus-visible:ring-destructive" : undefined}
+                        required
+                      />
+                      {fieldErrors.vatNumber ? (
+                        <p id="business-owner-vat-number-error" className="text-sm font-medium text-destructive">
+                          {fieldErrors.vatNumber}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="tin-number">TIN number</Label>
-                      <Input id="tin-number" name="tin-number" placeholder="1234567890" required />
+                      <Input
+                        id="tin-number"
+                        name="tin-number"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder={TIN_NUMBER_EXAMPLE}
+                        value={tinNumber}
+                        onChange={handleTinNumberChange}
+                        onBlur={handleTinNumberBlur}
+                        aria-invalid={Boolean(fieldErrors.tinNumber)}
+                        aria-describedby={fieldErrors.tinNumber ? "business-owner-tin-number-error" : undefined}
+                        className={fieldErrors.tinNumber ? "border-destructive focus-visible:ring-destructive" : undefined}
+                        required
+                      />
+                      {fieldErrors.tinNumber ? (
+                        <p id="business-owner-tin-number-error" className="text-sm font-medium text-destructive">
+                          {fieldErrors.tinNumber}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="owner-national-id">Owner national ID</Label>
                       <Input
                         id="owner-national-id"
                         name="owner-national-id"
-                        placeholder="63-123456-A-12"
+                        autoCapitalize="characters"
+                        autoCorrect="off"
+                        placeholder={OWNER_NATIONAL_ID_EXAMPLE}
+                        value={ownerNationalId}
+                        onChange={handleOwnerNationalIdChange}
+                        onBlur={handleOwnerNationalIdBlur}
+                        aria-invalid={Boolean(fieldErrors.ownerNationalId)}
+                        aria-describedby={
+                          fieldErrors.ownerNationalId ? "business-owner-owner-national-id-error" : undefined
+                        }
+                        className={
+                          fieldErrors.ownerNationalId ? "border-destructive focus-visible:ring-destructive" : undefined
+                        }
+                        required
+                      />
+                      {fieldErrors.ownerNationalId ? (
+                        <p id="business-owner-owner-national-id-error" className="text-sm font-medium text-destructive">
+                          {fieldErrors.ownerNationalId}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Input
+                        id="address"
+                        name="address"
+                        placeholder="22 Samora Machel Avenue"
+                        value={businessDraft.address}
+                        onChange={(event) => updateBusinessDraftField("address", event.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        name="city"
+                        placeholder="Harare"
+                        value={businessDraft.city}
+                        onChange={(event) => updateBusinessDraftField("city", event.target.value)}
                         required
                       />
                     </div>
@@ -433,23 +851,26 @@ const CreateBusinessOwnerAccount = () => {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="address">Address</Label>
-                      <Input id="address" name="address" placeholder="22 Samora Machel Avenue" required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="city">City</Label>
-                      <Input id="city" name="city" placeholder="Harare" required />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
                       <Label htmlFor="country">Country</Label>
-                      <Input id="country" name="country" placeholder="Zimbabwe" required />
+                      <Input
+                        id="country"
+                        name="country"
+                        placeholder="Zimbabwe"
+                        value={businessDraft.country}
+                        onChange={(event) => updateBusinessDraftField("country", event.target.value)}
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="logo-url">Logo URL</Label>
-                      <Input id="logo-url" name="logo-url" placeholder="https://..." required />
+                      <Input
+                        id="logo-url"
+                        name="logo-url"
+                        placeholder="https://..."
+                        value={businessDraft.logoUrl}
+                        onChange={(event) => updateBusinessDraftField("logoUrl", event.target.value)}
+                        required
+                      />
                     </div>
                   </div>
 
@@ -459,6 +880,8 @@ const CreateBusinessOwnerAccount = () => {
                       id="website"
                       name="website"
                       placeholder="https://instagram.com/yourbusiness"
+                      value={businessDraft.websiteUrl}
+                      onChange={(event) => updateBusinessDraftField("websiteUrl", event.target.value)}
                     />
                   </div>
 
@@ -470,8 +893,13 @@ const CreateBusinessOwnerAccount = () => {
                         name="tax-clearance-file"
                         type="file"
                         accept=".pdf,.png,.jpg,.jpeg"
-                        required
+                        required={!existingBusiness?.taxClearanceDocumentUrl}
                       />
+                      {canResubmitExistingBusiness && existingBusiness?.taxClearanceDocumentUrl ? (
+                        <p className="text-sm text-muted-foreground">
+                          The current tax clearance document on file will be reused unless you upload a replacement.
+                        </p>
+                      ) : null}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="certified-registrant-id-file">
@@ -482,8 +910,13 @@ const CreateBusinessOwnerAccount = () => {
                         name="certified-registrant-id-file"
                         type="file"
                         accept=".pdf,.png,.jpg,.jpeg"
-                        required
+                        required={!existingBusiness?.certifiedRegistrantIdDocumentUrl}
                       />
+                      {canResubmitExistingBusiness && existingBusiness?.certifiedRegistrantIdDocumentUrl ? (
+                        <p className="text-sm text-muted-foreground">
+                          The current certified registrant ID copy on file will be reused unless you upload a replacement.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -498,6 +931,11 @@ const CreateBusinessOwnerAccount = () => {
                         type="file"
                         accept=".pdf,.png,.jpg,.jpeg"
                       />
+                      {canResubmitExistingBusiness && existingBusiness?.businessRegistrationCertificateUrl ? (
+                        <p className="text-sm text-muted-foreground">
+                          Upload a new certificate only if the reviewer asked for a replacement.
+                        </p>
+                      ) : null}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="proof-of-business-address-file">
@@ -509,14 +947,33 @@ const CreateBusinessOwnerAccount = () => {
                         type="file"
                         accept=".pdf,.png,.jpg,.jpeg"
                       />
+                      {canResubmitExistingBusiness && existingBusiness?.proofOfBusinessAddressDocumentUrl ? (
+                        <p className="text-sm text-muted-foreground">
+                          Upload a new address document only if you need to replace the current one.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
+
+                  {formError ? (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>
+                        {Object.keys(fieldErrors).length > 0
+                          ? "Please fix the highlighted fields"
+                          : "We could not complete your business owner setup"}
+                      </AlertTitle>
+                      <AlertDescription>{formError}</AlertDescription>
+                    </Alert>
+                  ) : null}
 
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
                     {isSubmitting
                       ? "Submitting..."
-                      : isBusinessOwner
-                        ? "Submit for approval"
+                      : canResubmitExistingBusiness
+                        ? "Resubmit for approval"
+                        : isBusinessOwner
+                          ? "Submit for approval"
                         : "Create Business Owner Account"}
                   </Button>
                 </form>
