@@ -439,6 +439,13 @@ export type Business = {
   verifiedAt: string; 
 };
 
+export type AdminBusiness = Business & {
+  ownerEmail?: string;
+  ownerRole?: string;
+  ownerVerified?: boolean;
+  latestVerification?: BusinessVerificationReview | null;
+};
+
 export type MfaSetupResponse = { secret: string; qrCodeUrl?: string };
 
 export type BusinessVerificationRequest = {
@@ -458,6 +465,7 @@ export type BusinessVerificationReview = {
   ownerNationalId?: string;
   supportingDocumentsUrl?: string;
   submittedAt?: string;
+  verifiedAt?: string;
   rejectionReason?: string;
   reviewHistory?: unknown[];
   reviewerHistory?: unknown[];
@@ -811,7 +819,7 @@ const toPromotionArray = (payload: PageResponse<Promotion> | Promotion[] | null 
   return (payload.content ?? []).map((promotion) => normalizePromotion(promotion));
 };
 
-const toBusinessArray = (payload: PageResponse<Business> | Business[] | null | undefined): Business[] => {
+const toBusinessArray = <T extends Business>(payload: PageResponse<T> | T[] | null | undefined): T[] => {
   if (!payload) return [];
   if (Array.isArray(payload)) return payload;
   return payload.content ?? [];
@@ -1286,6 +1294,7 @@ const normalizeBusinessVerificationReview = (payload: unknown): BusinessVerifica
     ownerNationalId: pickString(["ownerNationalId", "owner_national_id", "nationalId", "national_id", "ownerIdNumber", "owner_id_number", "nationalIdNumber", "national_id_number", "ownerNationalID", "owner_nationalID", "ownerNationalIdentityNumber", "owner_national_identity_number"]),
     supportingDocumentsUrl: pickString(["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url", "documentUrl", "document_url", "supportingDocumentUrl"]),
     submittedAt: pickString(["submittedAt", "submitted_at", "createdAt", "created_at", "requestedAt", "requested_at"]),
+    verifiedAt: pickString(["verifiedAt", "verified_at", "approvedAt", "approved_at", "reviewedAt", "reviewed_at"]),
     rejectionReason: pickString(["rejectionReason", "rejection_reason", "declineReason", "decline_reason", "reviewNote", "review_note", "note", "reason"]),
     reviewHistory: pickArray(["reviewHistory"]),
     reviewerHistory: pickArray(["reviewerHistory"]),
@@ -2597,13 +2606,37 @@ export const api = {
     throw new Error("Unable to load admin promotions.");
   },
   getAdminEvents: () => apiRequest<Event[]>("/api/admin/events"),
-  getAdminBusinesses: async () => {
-    const payload = await apiRequestWithAlternatives<PageResponse<Business> | Business[]>(
+  getAdminBusinesses: async (params?: {
+    query?: string;
+    status?: string;
+    ownerId?: number | string;
+    page?: number;
+    size?: number;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.query?.trim()) {
+      queryParams.set("q", params.query.trim());
+    }
+    if (params?.status?.trim()) {
+      queryParams.set("status", toStatusParam(params.status));
+    }
+    if (params?.ownerId !== undefined && String(params.ownerId).trim().length > 0) {
+      queryParams.set("ownerId", String(params.ownerId));
+    }
+    if (params?.page !== undefined) {
+      queryParams.set("page", String(params.page));
+    }
+    if (params?.size !== undefined) {
+      queryParams.set("size", String(params.size));
+    }
+
+    const suffix = queryParams.toString().length > 0 ? `?${queryParams.toString()}` : "";
+    const payload = await apiRequestWithAlternatives<PageResponse<AdminBusiness> | AdminBusiness[]>(
       [
-        "/api/admin/businesses",
-        "/api/businesses/admin",
-        "/api/businesses?scope=admin",
-        "/api/businesses",
+        `/api/admin/businesses${suffix}`,
+        `/api/businesses/admin${suffix}`,
+        `/api/businesses${suffix ? `${suffix}&scope=admin` : "?scope=admin"}`,
+        `/api/businesses${suffix}`,
       ],
       {},
       [400, 404]

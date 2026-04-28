@@ -22,6 +22,7 @@ import ReportsModerationPanel from "@/components/operations/ReportsModerationPan
 import {
   api,
   extractBusinessVerificationReview,
+  type AdminBusiness,
   type Business,
   type BusinessVerificationReview,
   type Promotion,
@@ -30,7 +31,7 @@ import { getPromotionVerificationStatus } from "@/lib/promotionStatus";
 
 type ReviewAction = "APPROVED" | "REJECTED" | "MORE_DOCUMENTS_REQUESTED";
 type PromotionStatusFilter = "ALL" | "PENDING" | "REPORTED" | "APPROVED" | "REJECTED";
-type QueueStatusFilter = "ALL" | "PENDING" | "MORE_DOCUMENTS_REQUESTED";
+type QueueStatusFilter = "ALL" | "PENDING" | "MORE_DOCUMENTS_REQUESTED" | "VERIFIED" | "REJECTED";
 type ReviewSource = "api" | "embedded" | "none";
 
 type ReviewerHistoryItem = {
@@ -42,7 +43,7 @@ type ReviewerHistoryItem = {
 };
 
 type QueueItem = {
-  business: Business;
+  business: AdminBusiness;
   review: BusinessVerificationReview | null;
   reviewSource: ReviewSource;
   history: ReviewerHistoryItem[];
@@ -66,7 +67,12 @@ const PENDING_STATUSES = new Set([
   "NEW",
 ]);
 const REQUESTED_MORE_DOCS_STATUSES = new Set(["MORE_DOCUMENTS_REQUESTED", "ADDITIONAL_DOCUMENTS_REQUIRED"]);
-const FINAL_REVIEW_STATUSES = new Set(["APPROVED", "VERIFIED", "REJECTED", "DECLINED"]);
+const VERIFIED_STATUSES = new Set(["APPROVED", "VERIFIED"]);
+const REJECTED_STATUSES = new Set(["REJECTED", "DECLINED"]);
+const ACTIONABLE_QUEUE_STATUSES = new Set([
+  ...PENDING_STATUSES,
+  ...REQUESTED_MORE_DOCS_STATUSES,
+]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -207,26 +213,12 @@ const getQueueReview = (item: QueueItem) =>
   item.review ?? safelyExtractEmbeddedReview(item.business, item.business.id);
 
 const getStoredReviewId = (item: QueueItem) =>
-  item.reviewSource === "api"
-    ? item.review?.id ?? item.review?.businessId
-    : getExplicitVerificationRecordId(item.business);
+  item.review?.id
+  ?? item.review?.businessId
+  ?? getExplicitVerificationRecordId(item.business);
 
 const getQueueItemStatus = (item: QueueItem) =>
   String(getQueueReview(item)?.status ?? item.business.businessVerificationStatus ?? "").toUpperCase();
-
-const shouldIncludeQueueItem = (item: QueueItem) => {
-  const normalizedStatus = getQueueItemStatus(item);
-
-  if (PENDING_STATUSES.has(normalizedStatus) || REQUESTED_MORE_DOCS_STATUSES.has(normalizedStatus)) {
-    return true;
-  }
-
-  if (FINAL_REVIEW_STATUSES.has(normalizedStatus)) {
-    return false;
-  }
-
-  return !item.business.verified;
-};
 
 const getVerificationFieldValue = (
   item: QueueItem,
@@ -280,7 +272,9 @@ const extractHistoryFromReview = (review: BusinessVerificationReview | null): Re
 const matchesQueueFilter = (status: string, filter: QueueStatusFilter) => {
   if (filter === "ALL") return true;
   if (filter === "PENDING") return PENDING_STATUSES.has(status);
-  return REQUESTED_MORE_DOCS_STATUSES.has(status);
+  if (filter === "MORE_DOCUMENTS_REQUESTED") return REQUESTED_MORE_DOCS_STATUSES.has(status);
+  if (filter === "VERIFIED") return VERIFIED_STATUSES.has(status);
+  return REJECTED_STATUSES.has(status);
 };
 
 const matchesPromotionFilter = (status: string, filter: PromotionStatusFilter) => {
@@ -311,45 +305,27 @@ const OperationsConsole = () => {
     try {
       const businesses = await api.getAdminBusinesses();
 
-      const businessesWithReviews = await Promise.all(
-        businesses.map(async (business) => {
-          try {
-            const detailedBusiness = await api.getBusiness(business.id).catch(() => business);
-            const mergedBusiness = { ...business, ...detailedBusiness };
-            const embeddedReview = safelyExtractEmbeddedReview(mergedBusiness, mergedBusiness.id);
-            const review = await api.getBusinessVerification(mergedBusiness.id);
-            return {
-              business: mergedBusiness,
-              review,
-              reviewSource: "api",
-              history: extractHistoryFromReview(review),
-            } satisfies QueueItem;
-          } catch (error) {
-            console.warn("Unable to hydrate verification details for business", business?.id, error);
-            const embeddedReview = safelyExtractEmbeddedReview(business, business?.id);
-            return {
-              business,
-              review: embeddedReview,
-              reviewSource: embeddedReview ? "embedded" : "none",
-              history: extractHistoryFromReview(embeddedReview),
-            } satisfies QueueItem;
-          }
-        })
-      );
+      const businessesWithReviews = businesses.map((business) => {
+        const embeddedReview = business.latestVerification ?? safelyExtractEmbeddedReview(business, business.id);
+        return {
+          business,
+          review: embeddedReview,
+          reviewSource: embeddedReview ? "embedded" : "none",
+          history: extractHistoryFromReview(embeddedReview),
+        } satisfies QueueItem;
+      });
 
-      const pendingQueue = businessesWithReviews.filter(shouldIncludeQueueItem);
-
-      setQueueItems(pendingQueue);
+      setQueueItems(businessesWithReviews);
       setSelectedBusinessId((current) => {
-        if (pendingQueue.length === 0) return null;
-        if (current !== null && pendingQueue.some((item) => item.business.id === current)) {
+        if (businessesWithReviews.length === 0) return null;
+        if (current !== null && businessesWithReviews.some((item) => item.business.id === current)) {
           return current;
         }
-        return pendingQueue[0].business.id;
+        return businessesWithReviews[0].business.id;
       });
     } catch (error) {
       console.error("Unable to load admin verification queue", error);
-      toast.error("Unable to load verification queue.");
+      toast.error("Unable to load the admin business directory.");
     } finally {
       setIsLoadingQueue(false);
     }
@@ -416,10 +392,17 @@ const OperationsConsole = () => {
       const searchableText = [
         item.business.businessName,
         item.business.ownerName,
+        item.business.ownerEmail,
         item.business.contactEmail,
+        item.business.phoneNumber,
+        item.business.category,
         item.business.city,
         item.business.country,
+        getVerificationFieldValue(item, ["vatNumber", "vat_number", "vatNo", "vat_no"]),
+        getVerificationFieldValue(item, ["tinNumber", "tin_number", "tinNo", "tin_no"]),
+        getVerificationFieldValue(item, ["ownerNationalId", "owner_national_id", "nationalId", "national_id"]),
       ]
+        .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
@@ -660,7 +643,7 @@ const OperationsConsole = () => {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold">Admin Operations Console</h1>
             <p className="max-w-3xl text-muted-foreground">
-              Search a business and review verification submissions, reported promotions, and promotion moderation items from one place.
+              Search any business by business name or owner details, inspect the full registration record, and handle moderation workflows from one place.
             </p>
           </div>
           <Button variant="outline" asChild>
@@ -672,7 +655,7 @@ const OperationsConsole = () => {
           <CardHeader>
             <CardTitle>Approval filters</CardTitle>
             <CardDescription>
-              Search by business name, owner, contact email, report reason, promotion title, or location to find the moderation items you need to review.
+              Search by business name, owner name, owner email, VAT, TIN, report reason, promotion title, or location to find the records you need.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -699,19 +682,21 @@ const OperationsConsole = () => {
             <div className="grid gap-6 xl:grid-cols-[1.15fr_1fr]">
               <Card>
                 <CardHeader>
-                  <CardTitle>Verification Queue</CardTitle>
+                  <CardTitle>Business Directory</CardTitle>
                   <CardDescription>
-                    Businesses waiting for approval or additional documents.
+                    Search any registered business. Approval actions stay available only for pending or correction states.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label>Queue filter</Label>
                     <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as QueueStatusFilter)}>
-                      <TabsList className="grid grid-cols-3">
+                      <TabsList className="grid grid-cols-5">
                         <TabsTrigger value="ALL">All</TabsTrigger>
                         <TabsTrigger value="PENDING">Pending</TabsTrigger>
                         <TabsTrigger value="MORE_DOCUMENTS_REQUESTED">Docs requested</TabsTrigger>
+                        <TabsTrigger value="VERIFIED">Verified</TabsTrigger>
+                        <TabsTrigger value="REJECTED">Rejected</TabsTrigger>
                       </TabsList>
                     </Tabs>
                   </div>
@@ -730,7 +715,7 @@ const OperationsConsole = () => {
                         {isLoadingQueue && (
                           <TableRow>
                             <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                              Loading verification queue...
+                              Loading business directory...
                             </TableCell>
                           </TableRow>
                         )}
@@ -756,7 +741,10 @@ const OperationsConsole = () => {
                             >
                               <TableCell>
                                 <p className="font-medium">{item.business.businessName}</p>
-                                <p className="text-xs text-muted-foreground">Owner: {item.business.ownerName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Owner: {item.business.ownerName}
+                                  {item.business.ownerEmail ? ` (${item.business.ownerEmail})` : ""}
+                                </p>
                               </TableCell>
                               <TableCell>
                                 <Badge variant="secondary">{formatStatusLabel(status)}</Badge>
@@ -774,21 +762,24 @@ const OperationsConsole = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Review Details</CardTitle>
+                  <CardTitle>Business Details</CardTitle>
                   <CardDescription>
-                    Inspect documents and complete one explicit action with reviewer notes.
+                    Review the full business registration profile, latest verification record, and supporting documents.
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-5">
                   {!selectedQueueItem && (
                     <p className="text-sm text-muted-foreground">
-                      Select a business from the queue to start reviewing.
+                      Select a business from the directory to inspect its registration details.
                     </p>
                   )}
 
                   {selectedQueueItem && (() => {
                     const resolvedReview = getQueueReview(selectedQueueItem);
+                    const resolvedStatus = getQueueItemStatus(selectedQueueItem);
+                    const canModerateSelectedBusiness =
+                      ACTIONABLE_QUEUE_STATUSES.has(resolvedStatus) && Boolean(resolvedReview);
                     const supportingDocumentsUrl = getVerificationFieldValue(
                       selectedQueueItem,
                       ["supportingDocumentsUrl", "supporting_documents_url", "documentsUrl", "documents_url", "documentUrl", "document_url", "supportingDocumentUrl"],
@@ -823,12 +814,52 @@ const OperationsConsole = () => {
 
                       <div className="grid gap-3 md:grid-cols-2 text-sm">
                         <div>
+                          <p className="text-muted-foreground">Business ID</p>
+                          <p className="font-medium">{selectedQueueItem.business.id}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Verification status</p>
+                          <p className="font-medium">{formatStatusLabel(resolvedStatus || selectedQueueItem.business.businessVerificationStatus || "PENDING")}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Owner</p>
+                          <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.ownerName)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Owner account email</p>
+                          <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.ownerEmail)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Owner account status</p>
+                          <p className="font-medium">{selectedQueueItem.business.ownerVerified ? "Verified" : "Not verified"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Owner role</p>
+                          <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.ownerRole)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Category</p>
+                          <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.category)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Contact phone</p>
+                          <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.phoneNumber)}</p>
+                        </div>
+                        <div>
                           <p className="text-muted-foreground">Business address</p>
                           <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.address)}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Contact email</p>
                           <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.contactEmail)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Website</p>
+                          <p className="font-medium">{formatOptionalValue(selectedQueueItem.business.websiteUrl)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Logo URL</p>
+                          <p className="font-medium break-all">{formatOptionalValue(selectedQueueItem.business.logoUrl)}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">VAT number</p>
@@ -845,6 +876,10 @@ const OperationsConsole = () => {
                         <div>
                           <p className="text-muted-foreground">Submitted</p>
                           <p className="font-medium">{formatDateTime(resolvedReview?.submittedAt ?? selectedQueueItem.business.createdAt)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Verified at</p>
+                          <p className="font-medium">{formatDateTime(selectedQueueItem.business.verifiedAt ?? resolvedReview?.verifiedAt)}</p>
                         </div>
                       </div>
 
@@ -945,7 +980,8 @@ const OperationsConsole = () => {
 
                       <Separator />
 
-                      <div className="space-y-4">
+                      {canModerateSelectedBusiness ? (
+                        <div className="space-y-4">
                         <div className="space-y-2">
                           <Label htmlFor="approve-note">Approve · optional reviewer note</Label>
                           <Textarea
@@ -1001,7 +1037,12 @@ const OperationsConsole = () => {
                             Request More Documents
                           </Button>
                         </div>
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-md border bg-muted/25 p-3 text-sm text-muted-foreground">
+                          This business is currently {formatStatusLabel(resolvedStatus || "UNKNOWN")}. Review actions are only available once a verification submission exists and the business is pending approval or waiting for additional documents.
+                        </div>
+                      )}
 
                       <Separator />
 
